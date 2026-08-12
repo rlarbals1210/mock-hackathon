@@ -55,5 +55,8 @@ export default defineConfig(({ mode }) => {
   return {
     envDir: projectRoot,
     plugins: [react(), localInsightsApi(environment)],
+    server: {
+      port: 5174,
+    },
   }
 })
