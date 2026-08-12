@@ -171,9 +171,13 @@ def make_brokers(n):
     except Exception as e:
         print(f'  · 알선소: 공개목록({BROKER_CSV}) 미발견 → 합성 이름 대체 ({e.__class__.__name__})')
         names = [f'{a}{b}' for b in BROKER_SUFFIX for a in BROKER_NAMES][:n]
-    if len(names) < n:   # 목록이 모자라면 합성으로 보충
-        extra = [f'{a}{b}' for b in BROKER_SUFFIX for a in BROKER_NAMES]
-        names = names + extra[:n - len(names)]
+    if len(names) < n:   # 목록이 모자라면 합성으로 보충 (풀 크기(80)보다 n이 크면 접미번호를 붙여 반복)
+        pool = [f'{a}{b}' for b in BROKER_SUFFIX for a in BROKER_NAMES]
+        i = 0
+        while len(names) < n:
+            suffix = '' if i == 0 else str(i + 1)
+            names = names + [f'{p}{suffix}' for p in pool]
+            i += 1
     names = names[:n]
     if gubun is None or len(gubun) < n:
         gubun = R.choice(['주선사', '운송사'], n, p=[.72, .28])
