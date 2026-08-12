@@ -508,67 +508,77 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
           <Icon name="switch" />
         </button>
         <div className="carrier-phone">
-          <header className="carrier-header">
-            <div className="carrier-header-titles">
-              <h1>Mov!n <span>Carrier</span></h1>
-              <span className="mono-label">{carrierStageLabels[stage]}</span>
-            </div>
-          </header>
-          <div className="carrier-content">
-            {stage === 'base-profile' && <BaseProfileScreen onNext={() => setStage('preferences')} />}
-            {stage === 'preferences' && (
-              <PreferenceSetupScreen
-                onNext={(prefs) => {
-                  setPreferences(prefs)
-                  setStage('home')
-                }}
-              />
-            )}
-            {stage === 'home' && <OrderBoardScreen preferences={preferences} scanning={!notification} />}
-            {stage === 'candidates' && (
-              <CandidateSelectScreen
-                onConfirm={(candidate) => {
-                  setSelectedCandidate(candidate)
-                  setActiveRoute(candidate.route)
-                  setStage('route-map')
-                }}
-              />
-            )}
-            {stage === 'route-map' && (
-              <RouteMapScreen
-                hasMoreOffers={hasMoreOffers}
-                onArrive={() => {
-                  if (hasMoreOffers) {
-                    setNotification('backhaul')
-                  } else {
-                    setStage('summary')
-                  }
-                }}
-                progress={progress}
-                route={activeRoute}
-              />
-            )}
-            {stage === 'backhaul-decision' && (
-              <BackhaulDecisionScreen
-                offer={backhaulOffers[legIndex]}
-                onAccept={() => {
-                  const offer = backhaulOffers[legIndex]
-                  setAcceptedOffers((prev) => [...prev, offer])
-                  setActiveRoute(offer.route)
-                  setLegIndex((prev) => prev + 1)
-                  setStage('route-map')
-                }}
-                onGoHome={() => setStage('summary')}
-              />
-            )}
-            {stage === 'summary' && (
-              <TripSummaryScreen acceptedOffers={acceptedOffers} onRestart={restart} selectedCandidate={selectedCandidate} />
-            )}
+          <div aria-hidden="true" className="carrier-system-bar">
+            <time dateTime="09:41">9:41</time>
+            <span className="carrier-dynamic-island" />
+            <img alt="" className="carrier-system-icons" src="/ios-status-icons.svg" />
           </div>
-          <NotificationToast
-            kind={stage === 'home' || stage === 'route-map' ? notification : null}
-            onOpen={openNotification}
-          />
+          <div className="carrier-screen">
+            <header className="carrier-header">
+              <div className="carrier-header-titles">
+                <h1>Mov!n <span>Carrier</span></h1>
+                <span className="mono-label">{carrierStageLabels[stage]}</span>
+              </div>
+            </header>
+            <div className="carrier-content">
+              {stage === 'base-profile' && <BaseProfileScreen onNext={() => setStage('preferences')} />}
+              {stage === 'preferences' && (
+                <PreferenceSetupScreen
+                  onNext={(prefs) => {
+                    setPreferences(prefs)
+                    setStage('home')
+                  }}
+                />
+              )}
+              {stage === 'home' && <OrderBoardScreen preferences={preferences} scanning={!notification} />}
+              {stage === 'candidates' && (
+                <CandidateSelectScreen
+                  onConfirm={(candidate) => {
+                    setSelectedCandidate(candidate)
+                    setActiveRoute(candidate.route)
+                    setStage('route-map')
+                  }}
+                />
+              )}
+              {stage === 'route-map' && (
+                <RouteMapScreen
+                  hasMoreOffers={hasMoreOffers}
+                  onArrive={() => {
+                    if (hasMoreOffers) {
+                      setNotification('backhaul')
+                    } else {
+                      setStage('summary')
+                    }
+                  }}
+                  progress={progress}
+                  route={activeRoute}
+                />
+              )}
+              {stage === 'backhaul-decision' && (
+                <BackhaulDecisionScreen
+                  offer={backhaulOffers[legIndex]}
+                  onAccept={() => {
+                    const offer = backhaulOffers[legIndex]
+                    setAcceptedOffers((prev) => [...prev, offer])
+                    setActiveRoute(offer.route)
+                    setLegIndex((prev) => prev + 1)
+                    setStage('route-map')
+                  }}
+                  onGoHome={() => setStage('summary')}
+                />
+              )}
+              {stage === 'summary' && (
+                <TripSummaryScreen acceptedOffers={acceptedOffers} onRestart={restart} selectedCandidate={selectedCandidate} />
+              )}
+            </div>
+            <NotificationToast
+              kind={stage === 'home' || stage === 'route-map' ? notification : null}
+              onOpen={openNotification}
+            />
+          </div>
+          <div aria-hidden="true" className="carrier-device-footer">
+            <img alt="" src="/ios-home-indicator.svg" />
+          </div>
         </div>
       </div>
     </div>
