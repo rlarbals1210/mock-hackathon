@@ -4,10 +4,11 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_feedback_store, get_matching_engine
+from app.api.dependencies import get_catalog_service, get_feedback_store, get_matching_engine
 from app.core.config import settings
 from app.main import app
 from app.services.data_repository import MatchingDataRepository
+from app.services.catalog_service import CatalogService
 from app.services.feedback_store import FeedbackStore
 from app.services.matching_engine import MatchingEngine
 from app.services.model_service import MatchingModelService
@@ -19,6 +20,7 @@ test_engine = MatchingEngine(
     MatchingModelService(settings.matching_model_path),
 )
 app.dependency_overrides[get_matching_engine] = lambda: test_engine
+app.dependency_overrides[get_catalog_service] = lambda: CatalogService(test_engine.repository)
 client = TestClient(app, raise_server_exceptions=False)
 
 
@@ -38,6 +40,66 @@ def test_frontend_5174_cors_preflight():
     )
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:5174"
+
+
+def test_catalog_options_are_derived_from_loaded_data():
+    response = client.get("/api/v1/catalog/options")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source"] == "demo_seed_v1"
+    assert body["totalCallCount"] == 3
+    assert {option["value"] for option in body["origins"]} == {"부산신항", "창원공단", "대전유성"}
+    assert {option["value"] for option in body["vehicleTypes"]} == {"11t카고"}
+    assert {option["value"] for option in body["items"]} == {"철강재", "생활용품", "자동차부품"}
+    assert body["sampleCargo"]["routeId"] == "R01"
+    assert body["sampleCargo"]["vehicleType"] == "11t카고"
+
+
+def test_catalog_options_filter_dependent_choices():
+    response = client.get(
+        "/api/v1/catalog/options",
+        params={"origin": "부산신항", "tonnage": 11, "bodyType": "카고"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["selectionValid"] is True
+    assert body["matchedCallCount"] == 1
+    assert [option["value"] for option in body["destinations"]] == ["김포"]
+    assert [option["value"] for option in body["items"]] == ["철강재"]
+    assert body["routes"][0]["routeId"] == "R01"
+    assert body["routes"][0]["baseFareByTonnage"]["11"] == 454000
+
+
+def test_catalog_invalid_combination_returns_alternatives_without_inventing_values():
+    response = client.get(
+        "/api/v1/catalog/options",
+        params={"origin": "부산신항", "destination": "화성"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["selectionValid"] is False
+    assert body["matchedCallCount"] == 0
+    assert body["routes"] == []
+    assert [option["value"] for option in body["destinations"]] == ["김포"]
+
+
+def test_catalog_sample_cargo_is_directly_accepted_by_match_api():
+    catalog = client.get(
+        "/api/v1/catalog/options",
+        params={"origin": "부산신항", "destination": "김포", "vehicleType": "11t카고"},
+    ).json()
+    cargo = catalog["sampleCargo"]
+    response = client.post(
+        "/api/v1/matches/shipper",
+        json={
+            "requestId": "catalog-chain-test",
+            "cargo": cargo,
+            "timeWindowOptionsMinutes": [cargo["loadingWindowMinutes"], 480, 1440, 2880],
+            "carrierLimit": 3,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["cargo"]["callId"] == cargo["callId"]
 
 
 def test_shipper_contract():

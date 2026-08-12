@@ -50,6 +50,7 @@ class CallRecord:
     loading_window_minutes: int
     tonnage: int
     body_type: str
+    vehicle_type: str
     item: str
     weight_kg: int
     pallets: int
@@ -62,6 +63,10 @@ class CallRecord:
     order_change_allowed: bool
     permission_unapproved: bool
     registration_actor: str
+    loading_method: str
+    unloading_method: str
+    payment_method: str
+    time_change_cost_per_hour: int
     urgent: bool
 
 
@@ -229,6 +234,7 @@ class MatchingDataRepository:
                 loading_window_minutes=_as_int(row["시간창_분"]),
                 tonnage=_as_int(row["톤급"]),
                 body_type=str(row["적재형태"]),
+                vehicle_type=str(row["차종"]),
                 item=str(row["품목"]),
                 weight_kg=_as_int(row["중량_kg"]),
                 pallets=_as_int(row["파렛트"]),
@@ -241,6 +247,10 @@ class MatchingDataRepository:
                 order_change_allowed=_yes(row.get("상하차_순서변경")),
                 permission_unapproved=str(row.get("원화주_조정권한_증빙", "")) == "미승인",
                 registration_actor=str(row.get("등록주체", "원화주직접")),
+                loading_method=str(row.get("상차방법", "지게차")),
+                unloading_method=str(row.get("하차방법", "지게차")),
+                payment_method=str(row.get("지불방식", "인수증후불")),
+                time_change_cost_per_hour=_as_int(row.get("시간변경비용_원_시간")),
                 urgent=str(row.get("긴급여부", "일반")) == "긴급",
             ))
 
@@ -353,9 +363,42 @@ class MatchingDataRepository:
             for index in range(1, 11_801)
         )
         calls = (
-            CallRecord("C0042", "S018", "R01", datetime(2026, 8, 13, 17, 30, tzinfo=KST), datetime(2026, 8, 12, 15, 30, tzinfo=KST), 26, 180, 11, "카고", "철강재", 9500, 10, 454000, 454000, False, False, False, False, False, False, "원화주직접", False),
-            CallRecord("C0178", "S044", "R12", datetime(2026, 8, 13, 19, 0, tzinfo=KST), datetime(2026, 8, 12, 12, 0, tzinfo=KST), 31, 240, 11, "카고", "생활용품", 7800, 12, 350000, 350000, True, False, True, False, False, False, "원화주직접", False),
-            CallRecord("C0224", "S087", "R04", datetime(2026, 8, 14, 9, 0, tzinfo=KST), datetime(2026, 8, 12, 10, 0, tzinfo=KST), 47, 480, 11, "카고", "자동차부품", 8200, 13, 406000, 406000, True, False, False, True, False, False, "원화주직접", False),
+            CallRecord(
+                call_id="C0042", shipper_id="S018", route_id="R01",
+                loading_at=datetime(2026, 8, 13, 17, 30, tzinfo=KST),
+                registered_at=datetime(2026, 8, 12, 15, 30, tzinfo=KST),
+                lead_time_hours=26, loading_window_minutes=180, tonnage=11,
+                body_type="카고", vehicle_type="11t카고", item="철강재",
+                weight_kg=9500, pallets=10, base_fare_krw=454000, offered_fare_krw=454000,
+                vehicle_flexible=False, split_allowed=False, concurrent_load_allowed=False,
+                waypoint_allowed=False, order_change_allowed=False, permission_unapproved=False,
+                registration_actor="원화주직접", loading_method="지게차", unloading_method="지게차",
+                payment_method="인수증후불", time_change_cost_per_hour=0, urgent=False,
+            ),
+            CallRecord(
+                call_id="C0178", shipper_id="S044", route_id="R12",
+                loading_at=datetime(2026, 8, 13, 19, 0, tzinfo=KST),
+                registered_at=datetime(2026, 8, 12, 12, 0, tzinfo=KST),
+                lead_time_hours=31, loading_window_minutes=240, tonnage=11,
+                body_type="카고", vehicle_type="11t카고", item="생활용품",
+                weight_kg=7800, pallets=12, base_fare_krw=350000, offered_fare_krw=350000,
+                vehicle_flexible=True, split_allowed=False, concurrent_load_allowed=True,
+                waypoint_allowed=False, order_change_allowed=False, permission_unapproved=False,
+                registration_actor="원화주직접", loading_method="지게차", unloading_method="수작업",
+                payment_method="인수증후불", time_change_cost_per_hour=0, urgent=False,
+            ),
+            CallRecord(
+                call_id="C0224", shipper_id="S087", route_id="R04",
+                loading_at=datetime(2026, 8, 14, 9, 0, tzinfo=KST),
+                registered_at=datetime(2026, 8, 12, 10, 0, tzinfo=KST),
+                lead_time_hours=47, loading_window_minutes=480, tonnage=11,
+                body_type="카고", vehicle_type="11t카고", item="자동차부품",
+                weight_kg=8200, pallets=13, base_fare_krw=406000, offered_fare_krw=406000,
+                vehicle_flexible=True, split_allowed=False, concurrent_load_allowed=False,
+                waypoint_allowed=True, order_change_allowed=False, permission_unapproved=False,
+                registration_actor="원화주직접", loading_method="호이스트", unloading_method="지게차",
+                payment_method="선불", time_change_cost_per_hour=0, urgent=False,
+            ),
         )
         stats = {
             "S018": ShipperStats(18, 0.72, 0.81, "고정주간", 0.22),

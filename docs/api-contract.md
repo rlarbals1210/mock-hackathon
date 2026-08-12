@@ -25,7 +25,147 @@
 - 예측값이 없을 때 `0`으로 대체하지 않고 `null`을 사용한다.
 - `predictionSources`를 통해 각 숫자가 학습 모델, 공급 풀 계산 또는 결정론적 비용 계산 중 어디에서 나왔는지 구분한다.
 
-## 3. POST /api/v1/matches/shipper
+## 3. GET /api/v1/catalog/options
+
+콜 등록 선택창에 사용할 값을 생성 엑셀의 `콜등록이력`, `참조_노선`, `참조_기준운임`에서 읽어 반환한다. 프론트는 이 응답을 사용하고 별도의 출발지·도착지·차종·품목 배열을 유지하지 않는다.
+
+선택 쿼리: `routeId`, `originRegion`, `origin`, `destinationRegion`, `destination`, `tonnage`, `bodyType`, `vehicleType`, `item`, `loadingMethod`, `unloadingMethod`, `paymentMethod`.
+
+각 선택지는 현재 조건과 실제로 함께 존재했던 콜 수를 `callCount`로 제공한다. 특정 필드의 목록을 계산할 때는 그 필드 자신의 필터만 제외하므로, 잘못된 조합을 선택해도 프론트가 가능한 대체 선택지를 표시할 수 있다. 모든 필터가 일치한 콜이 없으면 `selectionValid`는 `false`, `matchedCallCount`는 `0`이다.
+
+### 요청 예시
+
+```text
+GET {VITE_API_URL}/api/v1/catalog/options?origin=부산신항&destination=김포&tonnage=11&bodyType=카고&vehicleType=11t카고&item=철강재
+```
+
+### 실제 응답 예시
+
+```json
+{
+  "source": "유연오더_가상데이터_v13.xlsx",
+  "generatedAt": "2026-08-12T17:10:00+09:00",
+  "totalCallCount": 12000,
+  "matchedCallCount": 21,
+  "selectionValid": true,
+  "appliedFilters": {
+    "routeId": null,
+    "originRegion": null,
+    "origin": "부산신항",
+    "destinationRegion": null,
+    "destination": "김포",
+    "tonnage": 11,
+    "bodyType": "카고",
+    "vehicleType": "11t카고",
+    "item": "철강재",
+    "loadingMethod": null,
+    "unloadingMethod": null,
+    "paymentMethod": null
+  },
+  "originRegions": [
+    { "value": "영남", "label": "영남", "callCount": 21 }
+  ],
+  "origins": [
+    { "value": "부산신항", "label": "부산신항", "callCount": 21, "region": "영남" }
+  ],
+  "destinationRegions": [
+    { "value": "수도권", "label": "수도권", "callCount": 21 }
+  ],
+  "destinations": [
+    { "value": "김포", "label": "김포", "callCount": 21, "region": "수도권" },
+    { "value": "이천", "label": "이천", "callCount": 14, "region": "수도권" }
+  ],
+  "tonnages": [
+    { "value": 11, "label": "11톤", "callCount": 21 }
+  ],
+  "bodyTypes": [
+    { "value": "카고", "label": "카고", "callCount": 21 }
+  ],
+  "vehicleTypes": [
+    { "value": "11t카고", "label": "11t카고", "callCount": 21, "tonnage": 11, "bodyType": "카고" }
+  ],
+  "items": [
+    { "value": "기계류", "label": "기계류", "callCount": 44 },
+    { "value": "생활용품", "label": "생활용품", "callCount": 11 },
+    { "value": "섬유원단", "label": "섬유원단", "callCount": 1 },
+    { "value": "식품가공", "label": "식품가공", "callCount": 2 },
+    { "value": "자동차부품", "label": "자동차부품", "callCount": 8 },
+    { "value": "제과류", "label": "제과류", "callCount": 3 },
+    { "value": "철강재", "label": "철강재", "callCount": 21 },
+    { "value": "화학원료", "label": "화학원료", "callCount": 46 }
+  ],
+  "loadingMethods": [
+    { "value": "수작업", "label": "수작업", "callCount": 7 },
+    { "value": "지게차", "label": "지게차", "callCount": 12 },
+    { "value": "호이스트", "label": "호이스트", "callCount": 2 }
+  ],
+  "unloadingMethods": [
+    { "value": "수작업", "label": "수작업", "callCount": 7 },
+    { "value": "지게차", "label": "지게차", "callCount": 13 },
+    { "value": "호이스트", "label": "호이스트", "callCount": 1 }
+  ],
+  "paymentMethods": [
+    { "value": "선불", "label": "선불", "callCount": 8 },
+    { "value": "인수증후불", "label": "인수증후불", "callCount": 8 },
+    { "value": "착불", "label": "착불", "callCount": 5 }
+  ],
+  "loadingWindowMinutes": [
+    { "value": 30, "label": "30분", "callCount": 13 },
+    { "value": 240, "label": "240분", "callCount": 3 }
+  ],
+  "routes": [
+    {
+      "routeId": "R01",
+      "label": "부산신항 → 김포",
+      "origin": "부산신항",
+      "originRegion": "영남",
+      "destination": "김포",
+      "destinationRegion": "수도권",
+      "distanceKm": 400,
+      "standardHours": 6.5,
+      "toll": 32800,
+      "baseFareByTonnage": { "5": 368000, "11": 454000, "25": 596000 },
+      "callCount": 21
+    }
+  ],
+  "sampleCargo": {
+    "callId": "C10373",
+    "shipperId": "S260",
+    "routeId": "R01",
+    "origin": "부산신항",
+    "originRegion": "영남",
+    "destination": "김포",
+    "destinationRegion": "수도권",
+    "loadingAt": "2026-10-19T15:00:00+09:00",
+    "loadingWindowMinutes": 30,
+    "leadTimeHours": 28.3,
+    "tonnage": 11,
+    "bodyType": "카고",
+    "vehicleType": "11t카고",
+    "allowCompatibleVehicle": true,
+    "item": "철강재",
+    "weightKg": 6072,
+    "pallets": 6,
+    "baseFare": 454000,
+    "offeredFare": 454000,
+    "registrationActor": "원화주직접",
+    "adjustmentPermissionApproved": true,
+    "splitAllowed": false,
+    "concurrentLoadAllowed": false,
+    "waypointAllowed": false,
+    "orderChangeAllowed": false,
+    "loadingMethod": "지게차",
+    "unloadingMethod": "수작업",
+    "paymentMethod": "착불",
+    "timeChangeCostPerHour": 12000
+  },
+  "warnings": []
+}
+```
+
+`sampleCargo`는 현재 필터와 일치하면서 매칭 API의 입력 범위를 만족하는 실제 엑셀 콜 하나다. MVP에서는 여기에 `requestId`, `timeWindowOptionsMinutes`, `carrierLimit`만 더해 화주 매칭 API를 바로 시험할 수 있다.
+
+## 4. POST /api/v1/matches/shipper
 
 화물 조건과 여러 상차 시간창을 한 번에 평가하고, 화주용 조건 비교와 상위 운송인 후보를 반환한다.
 
@@ -47,6 +187,7 @@
     "leadTimeHours": 26.0,
     "tonnage": 11,
     "bodyType": "카고",
+    "vehicleType": "11t카고",
     "allowCompatibleVehicle": false,
     "item": "철강재",
     "weightKg": 9500,
@@ -60,6 +201,7 @@
     "waypointAllowed": false,
     "orderChangeAllowed": false,
     "loadingMethod": "지게차",
+    "unloadingMethod": "지게차",
     "paymentMethod": "인수증후불",
     "timeChangeCostPerHour": 0
   },
@@ -237,7 +379,7 @@
 }
 ```
 
-## 4. GET /api/v1/matches/carrier/{carrier_id}
+## 5. GET /api/v1/matches/carrier/{carrier_id}
 
 운송인 한 명에게 추천할 콜 목록을 점수 내림차순으로 반환한다.
 
@@ -304,7 +446,7 @@
 }
 ```
 
-## 5. POST /api/v1/matches/feedback
+## 6. POST /api/v1/matches/feedback
 
 화주 또는 운송인의 추천 반응을 기록한다. 같은 `matchId + actorId + action + callId + scenarioId` 조합은 중복 저장하지 않고 기존 결과를 반환한다.
 
@@ -336,7 +478,7 @@
 
 `status`는 `recorded` 또는 `duplicate`다.
 
-## 6. 공통 에러 응답
+## 7. 공통 에러 응답
 
 모든 4xx·5xx 응답은 같은 본문 형태를 사용한다.
 
@@ -364,7 +506,7 @@
 | 503 | `DATA_NOT_READY` | 생성 데이터가 준비되지 않아 요청 수행 불가 |
 | 500 | `INTERNAL_ERROR` | 예상하지 못한 서버 오류 |
 
-## 7. 숫자 단위와 범위
+## 8. 숫자 단위와 범위
 
 | 필드 | 단위 | 허용 범위 |
 |---|---|---|
@@ -379,9 +521,11 @@
 | `failureProbability`, `shipperAcceptanceProbability`, `confidence` | 비율 | `null` 또는 0~1 |
 | `score` | 점 | 정수 0~100 |
 
-## 8. 프론트 표시 규칙
+## 9. 프론트 표시 규칙
 
 - `failureProbability === null`이면 유찰확률 UI와 자연어 문장을 표시하지 않는다.
 - `shipperAcceptanceProbability === null`이면 수락확률을 표시하지 않는다.
 - `warnings`는 사용자에게 그대로 보여주는 문장이 아니라 기능 비활성화·대체 문구 선택에 사용한다.
 - 생성형 AI에는 `explanationFacts`와 구조화된 숫자만 전달하며, 새 숫자 계산을 요청하지 않는다.
+- 콜 등록 선택지는 `/api/v1/catalog/options`의 `value`를 저장하고 `label`을 화면에 표시한다. 임의의 `기타` 값은 MVP 매칭 요청에 보내지 않는다.
+- 사용자가 상위 선택을 바꾸어 기존 조합의 `selectionValid`가 `false`가 되면, 종속 선택값을 지우고 새 응답의 선택지만 표시한다.

@@ -272,6 +272,15 @@ class MatchingEngine:
             or cargo.destinationRegion != route.destination_region
         ):
             raise InvalidMatchRequestError("routeId와 출발지·도착지 정보가 일치하지 않습니다.")
+        if cargo.item not in {call.item for call in snapshot.calls}:
+            raise InvalidMatchRequestError("item은 생성 엑셀에 존재하는 품목이어야 합니다.")
+        if cargo.vehicleType and not any(
+            call.vehicle_type == cargo.vehicleType
+            and call.tonnage == cargo.tonnage
+            and call.body_type == cargo.bodyType
+            for call in snapshot.calls
+        ):
+            raise InvalidMatchRequestError("vehicleType과 tonnage·bodyType 조합이 생성 엑셀과 일치하지 않습니다.")
         expected_base_fare = snapshot.base_fares.get((cargo.routeId, cargo.tonnage))
         if expected_base_fare is not None and abs(cargo.baseFare - expected_base_fare) > max(1_000, expected_base_fare * 0.2):
             raise InvalidMatchRequestError("baseFare가 참조 기준운임과 20% 넘게 차이 납니다.")

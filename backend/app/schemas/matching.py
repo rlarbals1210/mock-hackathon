@@ -27,6 +27,7 @@ class CargoInput(ApiModel):
     leadTimeHours: float = Field(gt=0, le=720)
     tonnage: Tonnage
     bodyType: BodyType
+    vehicleType: str | None = Field(default=None, min_length=1, max_length=40)
     allowCompatibleVehicle: bool = False
     item: str = Field(min_length=1, max_length=80)
     weightKg: int = Field(gt=0, le=25_000)
@@ -40,6 +41,7 @@ class CargoInput(ApiModel):
     waypointAllowed: bool = False
     orderChangeAllowed: bool = False
     loadingMethod: Literal["지게차", "수작업", "호이스트"] = "지게차"
+    unloadingMethod: Literal["지게차", "수작업", "호이스트"] | None = None
     paymentMethod: Literal["인수증후불", "선불", "착불"] = "인수증후불"
     timeChangeCostPerHour: int = Field(default=0, ge=0, le=10_000_000)
 
