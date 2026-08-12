@@ -133,6 +133,44 @@ function toggleInList(current: string[], value: string) {
   return current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value]
 }
 
+function CarrierEntryScreen({ onRecommend }: { onRecommend: () => void }) {
+  const [showCargo, setShowCargo] = useState(false)
+
+  return (
+    <div className="carrier-scroll carrier-simple-screen carrier-entry-screen">
+      <div className="carrier-entry-hero">
+        <span className="icon-box icon-box--yellow"><Icon name="spark" /></span>
+        <p className="mono-label">SMART LOAD MATCHING</p>
+        <h2>오늘의 운행을<br />어떻게 시작할까요?</h2>
+        <p>등록된 화물을 먼저 둘러보거나, 내 차량과 조건에 맞는 최적안을 추천받아 보세요.</p>
+      </div>
+
+      {showCargo && (
+        <section aria-label="등록 화물 미리보기" className="carrier-entry-cargo">
+          <header><strong>지금 등록된 화물</strong><span>{orders.length}건</span></header>
+          {orders.slice(0, 3).map((order) => (
+            <article key={order.id}>
+              <div><strong>{order.route}</strong><small>{order.cargo} · {order.weight} · {order.loadTime}</small></div>
+              <b>{order.price}만원</b>
+            </article>
+          ))}
+          <p>최적안은 차량 정보와 선호 조건을 확인한 뒤 제안해요.</p>
+        </section>
+      )}
+
+      <div className="carrier-entry-actions">
+        <button aria-expanded={showCargo} className="button carrier-wide-button" onClick={() => setShowCargo((current) => !current)} type="button">
+          <Icon name="dashboard" size={19} /> {showCargo ? '화물 목록 닫기' : '화물 둘러보기'}
+        </button>
+        <button className="button button--primary carrier-wide-button" onClick={onRecommend} type="button">
+          <Icon name="spark" size={19} /> 최적안 추천 받기
+        </button>
+      </div>
+      <p className="carrier-choice-note"><Icon name="info" size={17} /> 최적안 추천 받기를 눌러야 다음 단계로 넘어갑니다</p>
+    </div>
+  )
+}
+
 function BaseProfileScreen({ onNext }: { onNext: () => void }) {
   return (
     <div className="carrier-scroll carrier-simple-screen">
@@ -567,7 +605,7 @@ function NotificationToast({ kind, onOpen }: { kind: NotificationKind; onOpen: (
 export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () => void }) {
   const clock = useLiveClock()
   const statusBarTime = formatStatusBarTime(clock)
-  const [stage, setStage] = useState<CarrierStage>('base-profile')
+  const [stage, setStage] = useState<CarrierStage>('entry')
   const [notification, setNotification] = useState<NotificationKind>(null)
   const [legIndex, setLegIndex] = useState(0)
   const [selectedCandidate, setSelectedCandidate] = useState<CarrierCall | null>(null)
@@ -632,7 +670,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
   }
 
   const restart = () => {
-    setStage('base-profile')
+    setStage('entry')
     setNotification(null)
     setLegIndex(0)
     setSelectedCandidate(null)
@@ -647,7 +685,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
         <span className="mono-label">TODAY'S ROUTE</span>
         <h2>운송인 흐름</h2>
         <div className="stage-list">
-          {(['base-profile', 'preferences', 'home', 'candidates', 'route-map', 'backhaul-decision', 'summary'] as CarrierStage[]).map((s) => (
+          {(['entry', 'base-profile', 'preferences', 'home', 'candidates', 'route-map', 'backhaul-decision', 'summary'] as CarrierStage[]).map((s) => (
             <div className={s === stage ? 'is-active' : ''} key={s}>
               <span><Icon name="truck" size={16} /></span>
               <p><strong>{carrierStageLabels[s]}</strong></p>
@@ -679,6 +717,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
               </div>
             </header>
             <div className="carrier-content">
+              {stage === 'entry' && <CarrierEntryScreen onRecommend={() => setStage('base-profile')} />}
               {stage === 'base-profile' && <BaseProfileScreen onNext={() => setStage('preferences')} />}
               {stage === 'preferences' && (
                 <PreferenceSetupScreen
