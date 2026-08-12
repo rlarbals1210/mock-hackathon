@@ -4,6 +4,22 @@ import { Icon } from '../../components/Icon'
 import { backhaulOffers, candidates, cityCoords, orders, virtualCarrierProfile, type BackhaulOffer, type Candidate } from '../../data'
 import { carrierStageLabels, type CarrierStage, type NotificationKind } from './flow'
 
+function useLiveClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(interval)
+  }, [])
+  return now
+}
+
+function formatStatusBarTime(date: Date) {
+  const hours24 = date.getHours()
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  const hours12 = hours24 % 12 || 12
+  return { dateTime: `${hours24.toString().padStart(2, '0')}:${minutes}`, label: `${hours12}:${minutes}` }
+}
+
 function routeEndpoints(route: string) {
   const [originLabel, destinationLabel] = route.split('→').map((part) => part.trim())
   return { originLabel, destinationLabel, origin: cityCoords[originLabel], destination: cityCoords[destinationLabel] }
@@ -443,6 +459,8 @@ function NotificationToast({ kind, onOpen }: { kind: NotificationKind; onOpen: (
 }
 
 export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () => void }) {
+  const clock = useLiveClock()
+  const statusBarTime = formatStatusBarTime(clock)
   const [stage, setStage] = useState<CarrierStage>('base-profile')
   const [notification, setNotification] = useState<NotificationKind>(null)
   const [legIndex, setLegIndex] = useState(0)
@@ -517,7 +535,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
         </button>
         <div className="carrier-phone">
           <div aria-hidden="true" className="carrier-system-bar">
-            <time dateTime="09:41">9:41</time>
+            <time dateTime={statusBarTime.dateTime}>{statusBarTime.label}</time>
             <span className="carrier-dynamic-island" />
             <img alt="" className="carrier-system-icons" src="/ios-status-icons.svg" />
           </div>

@@ -2316,6 +2316,7 @@
   padding: 64px 26px 16px;
   background: rgba(255, 255, 255, 0.93);
   border-bottom: 1px solid #ececec;
+  border-radius: 52px 52px 0 0;
   backdrop-filter: blur(14px);
 }
 
@@ -3357,6 +3358,10 @@
   .carrier-screen {
     inset: 7px;
     border-radius: 47px;
+  }
+
+  .carrier-header {
+    border-radius: 47px 47px 0 0;
   }
 
   .carrier-system-bar {
