@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { CargoRegistration } from './CargoRegistration'
 import { ConditionComparison } from './ConditionComparison'
@@ -24,31 +24,6 @@ export type { ShipperSection } from './shipperModel'
 
 const preferenceStorageKey = 'movin-shipper-preferences:v3'
 const workflowStorageKey = 'movin-shipper-workflow:v3'
-
-function readStorage<T>(key: string, fallback: T): T {
-  try {
-    const value = window.localStorage.getItem(key)
-    return value ? JSON.parse(value) as T : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function loadPreferences(): PreferenceState {
-  const parsed = readStorage<Partial<PreferenceState>>(preferenceStorageKey, {})
-  return {
-    result: Array.isArray(parsed.result) ? parsed.result.slice(0, 2) : [],
-    schedule: Array.isArray(parsed.schedule) ? parsed.schedule.slice(0, 2) : [],
-    carrier: Array.isArray(parsed.carrier) ? parsed.carrier.slice(0, 2) : [],
-  }
-}
-
-type StoredWorkflow = {
-  cargo?: CargoForm
-  choice?: DecisionChoice
-  adjustedHours?: number
-  operations?: OperationLog[]
-}
 
 function WorkflowStepper({ preferencesReady, cargoReady, choice, active }: { preferencesReady: boolean; cargoReady: boolean; choice: DecisionChoice; active: ShipperSection }) {
   const steps: { section: ShipperSection; label: string; complete: boolean }[] = [
@@ -115,7 +90,7 @@ function PreferenceSettings({ preferences, saved, onChange, onSave }: { preferen
           )
         })}
       </div>
-      <div className="preference-submit-v3"><button className="primary-v3" disabled={!ready} onClick={onSave} type="button">{saved ? '선호 조건 다시 저장하고 시작' : '선호 조건 저장하고 시작'} <Icon name="chevron" size={18} /></button><p>저장한 조건은 나중에 <strong>내 정보</strong>에서 다시 수정할 수 있어요.</p></div>
+      <div className="preference-submit-v3"><button className="primary-v3" disabled={!ready} onClick={onSave} type="button">{saved ? '선호 조건 다시 적용하고 시작' : '선호 조건 적용하고 시작'} <Icon name="chevron" size={18} /></button><p>현재 접속 중에는 <strong>내 정보</strong>에서 다시 수정할 수 있어요.</p></div>
     </div>
   )
 }
@@ -155,13 +130,12 @@ function CurrentDispatchInfo({ cargo, preferencesReady, choice }: { cargo: Cargo
 }
 
 export function ShipperScreen({ section, onNavigate }: { section: ShipperSection; onNavigate: (section: ShipperSection) => void }) {
-  const storedWorkflow = useMemo(() => readStorage<StoredWorkflow>(workflowStorageKey, {}), [])
-  const [preferences, setPreferences] = useState<PreferenceState>(loadPreferences)
-  const [saved, setSaved] = useState(() => preferencesAreComplete(preferences))
-  const [cargo, setCargo] = useState<CargoForm>(() => ({ ...emptyCargo, ...storedWorkflow.cargo }))
-  const [choice, setChoice] = useState<DecisionChoice>(storedWorkflow.choice ?? null)
-  const [adjustedHours, setAdjustedHours] = useState(storedWorkflow.adjustedHours ?? 12)
-  const [operations, setOperations] = useState<OperationLog[]>(storedWorkflow.operations ?? [])
+  const [preferences, setPreferences] = useState<PreferenceState>(() => ({ result: [], schedule: [], carrier: [] }))
+  const [saved, setSaved] = useState(false)
+  const [cargo, setCargo] = useState<CargoForm>(() => ({ ...emptyCargo }))
+  const [choice, setChoice] = useState<DecisionChoice>(null)
+  const [adjustedHours, setAdjustedHours] = useState(12)
+  const [operations, setOperations] = useState<OperationLog[]>([])
   const [toast, setToast] = useState('')
   const preferencesReady = preferencesAreComplete(preferences) && saved
   const cargoReady = cargoIsComplete(cargo)
@@ -170,11 +144,12 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
 
   useEffect(() => {
     try {
-      window.localStorage.setItem(workflowStorageKey, JSON.stringify({ cargo, choice, adjustedHours, operations }))
+      window.localStorage.removeItem(preferenceStorageKey)
+      window.localStorage.removeItem(workflowStorageKey)
     } catch {
-      // The flow remains usable in memory when storage is unavailable.
+      // The workflow remains session-only when storage is unavailable.
     }
-  }, [adjustedHours, cargo, choice, operations])
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -194,14 +169,9 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
   }
 
   const savePreferences = () => {
-    try {
-      window.localStorage.setItem(preferenceStorageKey, JSON.stringify(preferences))
-    } catch {
-      setToast('브라우저 저장소를 사용할 수 없어 이 화면에서만 조건을 유지합니다.')
-    }
     setSaved(true)
-    addOperation('선호 조건 저장', Object.values(preferences).flat().join(' · '))
-    setToast('선호 조건을 저장했습니다. 콜 등록을 이어서 작성해 주세요.')
+    addOperation('선호 조건 적용', Object.values(preferences).flat().join(' · '))
+    setToast('선호 조건을 적용했습니다. 콜 등록을 이어서 작성해 주세요.')
     onNavigate('register')
   }
 
@@ -237,7 +207,7 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
         {showSummary && <StaticSummaryRail cargo={cargo} choice={choice} preferencesReady={preferencesReady} />}
       </div>
       {showDispatch && <CurrentDispatchInfo cargo={cargo} choice={choice} preferencesReady={preferencesReady} />}
-      {toast && <div className="toast-v3" role="status"><span><Icon name="check" size={17} /></span><div><strong>작업이 저장됐어요.</strong><small>{toast}</small></div><button aria-label="알림 닫기" onClick={() => setToast('')} type="button">×</button></div>}
+      {toast && <div className="toast-v3" role="status"><span><Icon name="check" size={17} /></span><div><strong>작업이 반영됐어요.</strong><small>{toast}</small></div><button aria-label="알림 닫기" onClick={() => setToast('')} type="button">×</button></div>}
     </div>
   )
 }
