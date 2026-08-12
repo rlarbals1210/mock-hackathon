@@ -186,7 +186,7 @@ function RouteMapScreen({ route, progress, hasMoreOffers, onArrive }: { route: s
           >
             <MapMarker position={origin} />
             <MapMarker position={destination} />
-            <Polyline path={[origin, destination]} strokeColor="#f5a623" strokeOpacity={0.9} strokeStyle="solid" strokeWeight={4} />
+            <Polyline path={[origin, destination]} strokeColor="#f2d800" strokeOpacity={0.9} strokeStyle="solid" strokeWeight={4} />
             {truckPosition && (
               <CustomOverlayMap position={truckPosition} zIndex={10}>
                 <span className="carrier-map-truck"><Icon name="truck" size={14} /></span>

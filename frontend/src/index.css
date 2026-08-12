@@ -3,16 +3,24 @@
   --surface: #ffffff;
   --surface-low: #f3f3f4;
   --surface-high: #e8e8e8;
-  --ink: #1a1c1c;
+  --ink: #111b2a;
   --muted: #656565;
   --outline: #dedede;
-  --yellow: #fee500;
-  --yellow-strong: #f2d800;
-  --green: #08785d;
-  --green-soft: #edf8f4;
-  --orange: #d75a22;
-  --orange-soft: #fff0e8;
-  --sidebar: #1b1b1b;
+  /* Kakao Mobility brand palette: yellow + mobility navy. */
+  --brand-yellow: #fee500;
+  --brand-yellow-strong: #f2d800;
+  --brand-yellow-soft: #fff9d9;
+  --brand-navy: #111b2a;
+  --brand-navy-strong: #0b1320;
+  --brand-navy-soft: #eef1f5;
+  --yellow: var(--brand-yellow);
+  --yellow-strong: var(--brand-yellow-strong);
+  /* Legacy semantic aliases keep every existing screen on the two-color system. */
+  --green: var(--brand-navy);
+  --green-soft: var(--brand-navy-soft);
+  --orange: var(--brand-navy);
+  --orange-soft: var(--brand-yellow-soft);
+  --sidebar: var(--brand-navy-strong);
   --heading: 'Plus Jakarta Sans', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   --sans: Inter, Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;

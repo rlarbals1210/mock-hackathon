@@ -6,11 +6,11 @@ import { CarrierWorkspace } from './features/carrier/CarrierWorkspace'
 import { ShipperScreen, type ShipperSection } from './features/shipper/ShipperScreens'
 
 const shipperNavigation: { id: ShipperSection; label: string; icon: IconName }[] = [
-  { id: 'preferences', label: '필수 설정', icon: 'shield' },
-  { id: 'register', label: '콜 등록', icon: 'plus' },
-  { id: 'compare', label: '조건 비교', icon: 'compare' },
-  { id: 'report', label: '월간 리포트', icon: 'chart' },
-  { id: 'profile', label: '내 정보', icon: 'profile' },
+  { id: 'preferences', label: '필수 설정', icon: 'sliders' },
+  { id: 'register', label: '콜 등록', icon: 'clipboard-plus' },
+  { id: 'compare', label: '조건 비교', icon: 'balance' },
+  { id: 'report', label: '월간 리포트', icon: 'report' },
+  { id: 'profile', label: '내 정보', icon: 'account' },
 ]
 
 function Brand() {
