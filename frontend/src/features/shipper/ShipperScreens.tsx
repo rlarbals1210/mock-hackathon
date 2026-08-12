@@ -10,7 +10,6 @@ import {
   emptyCargo,
   formatDate,
   formatTimeWindow,
-  getCarbonReference,
   preferenceGroups,
   preferencesAreComplete,
   type CargoForm,
@@ -94,7 +93,7 @@ function PreferenceSettings({ preferences, saved, onChange, onSave }: { preferen
   return (
     <div className="flow-screen preference-screen-v3">
       <header className="flow-heading">
-        <div><span className="eyebrow">REQUIRED SHIPPER PREFERENCES</span><h1>화주 선호 조건 설정</h1><p>발주할 때 중요하게 보는 조건을 모두 선택하세요.</p></div>
+        <div><h1>화주 선호 조건 설정</h1><p>발주할 때 중요하게 보는 조건을 모두 선택하세요.</p></div>
         <div className="flow-heading__progress"><span>전체 진행률</span><strong>{completedGroups}/3</strong><div><i style={{ width: `${(completedGroups / 3) * 100}%` }} /></div></div>
       </header>
       <div className="preference-guide-v3"><Icon name="info" size={18} /> 각 질문에서 하나 이상 선택해야 하며, 질문별로 최대 2개까지 선택할 수 있어요. 처음에는 아무 항목도 선택되지 않습니다.</div>
@@ -122,18 +121,15 @@ function PreferenceSettings({ preferences, saved, onChange, onSave }: { preferen
 }
 
 function StaticSummaryRail({ cargo, preferencesReady, choice }: { cargo: CargoForm; preferencesReady: boolean; choice: DecisionChoice }) {
-  const carbon = getCarbonReference(cargo)
   const items = [
     { label: '화주 조건', value: preferencesReady ? '선택 완료' : '선택 대기', complete: preferencesReady },
     { label: '콜 정보', value: cargoIsComplete(cargo) ? '입력 완료' : '입력 대기', complete: cargoIsComplete(cargo) },
-    { label: '배차 결과', value: choice === 'adjusted' ? '조정안 선택' : choice === 'current' ? '현재 조건 선택' : '조건 조합 중', complete: Boolean(choice) },
+    { label: '배차 결과', value: choice === 'adjusted' ? '조정안 선택' : choice === 'current' ? '현재 조건 선택' : cargoIsComplete(cargo) ? '조건 조합 중' : '콜 입력 대기', complete: Boolean(choice) },
   ]
   return (
     <aside className="static-summary-rail panel-v3">
-      <header><div><span className="eyebrow">DECISION SUMMARY</span><h2>현재 선택 요약</h2></div><strong>{items.filter((item) => item.complete).length}/3</strong></header>
+      <header><h2>현재 선택 요약</h2><strong>{items.filter((item) => item.complete).length}/3</strong></header>
       <ol>{items.map((item, index) => <li className={item.complete ? 'is-complete' : ''} key={item.label}><span>{item.complete ? <Icon name="check" size={14} /> : index + 1}</span><div><strong>{item.label}</strong><small>{item.value}</small></div></li>)}</ol>
-      <div className="summary-carbon"><Icon name="leaf" size={19} /><span><small>탄소 계산 참고</small><strong>건당 {carbon.value}kgCO₂e</strong><em>{carbon.scope}</em></span></div>
-      <p>이 요약은 현재 브라우저에서 선택한 값만 표시합니다.</p>
     </aside>
   )
 }
@@ -152,7 +148,7 @@ function CurrentDispatchInfo({ cargo, preferencesReady, choice }: { cargo: Cargo
   ]
   return (
     <section className="current-dispatch-v3 panel-v3">
-      <header><div><span className="eyebrow">CURRENT CALL</span><h2>현재 배차 정보</h2></div><small>선택하지 않은 질문은 ‘미선택’으로 표시됩니다.</small></header>
+      <header><h2>현재 배차 정보</h2></header>
       <dl>{fields.map(([label, value]) => <div key={label}><dt>{label}</dt><dd className={value === '미선택' || value === '미발급' ? 'is-unselected' : label === '현재 상태' ? 'is-status' : ''}>{value}</dd></div>)}</dl>
     </section>
   )
@@ -169,6 +165,8 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
   const [toast, setToast] = useState('')
   const preferencesReady = preferencesAreComplete(preferences) && saved
   const cargoReady = cargoIsComplete(cargo)
+  const showSummary = section === 'register' || section === 'compare'
+  const showDispatch = section === 'compare' && cargoReady
 
   useEffect(() => {
     try {
@@ -234,11 +232,11 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
   return (
     <div className="shipper-workspace-v3">
       <WorkflowStepper active={section} cargoReady={cargoReady} choice={choice} preferencesReady={preferencesReady} />
-      <div className="workspace-v3-grid">
+      <div className={`workspace-v3-grid${showSummary ? '' : ' workspace-v3-grid--single'}`}>
         <div>{content}</div>
-        {section !== 'report' && section !== 'profile' && <StaticSummaryRail cargo={cargo} choice={choice} preferencesReady={preferencesReady} />}
+        {showSummary && <StaticSummaryRail cargo={cargo} choice={choice} preferencesReady={preferencesReady} />}
       </div>
-      <CurrentDispatchInfo cargo={cargo} choice={choice} preferencesReady={preferencesReady} />
+      {showDispatch && <CurrentDispatchInfo cargo={cargo} choice={choice} preferencesReady={preferencesReady} />}
       {toast && <div className="toast-v3" role="status"><span><Icon name="check" size={17} /></span><div><strong>작업이 저장됐어요.</strong><small>{toast}</small></div><button aria-label="알림 닫기" onClick={() => setToast('')} type="button">×</button></div>}
     </div>
   )
