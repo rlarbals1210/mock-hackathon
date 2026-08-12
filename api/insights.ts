@@ -95,7 +95,11 @@ ${sharedRules}
 - 첫 문단은 선택한 조건과 배차 의미, 둘째 문단은 후보 수·운임·배차시간의 변화와 한계를 설명하세요.
 - 확률은 소수를 그대로 쓰지 말고 백분율로 소수 첫째 자리까지 표기하세요. 예: 0.0676 이면 6.8%.
 - loadingWindowMinutes 같은 분 단위 값은 분 그대로 쓰고 시간으로 환산하지 마세요.
-- 금액은 원 단위 숫자를 그대로 쓰세요.`
+- 금액은 원 단위 숫자를 그대로 쓰세요.
+- 변화를 말할 때는 반드시 current와 selectedScenario를 비교하고, differences의 부호를 그대로 따르세요.
+- 음수 차이는 "-46분"처럼 부호를 붙이지 말고 "46분 줄어" 처럼 말로 방향을 표현하세요.
+- confidence 같은 내부 지표는 문장에 넣지 마세요.
+- recommendation과 explanationFacts가 비어 있으면 서버 추천을 언급하지 말고 current와 selectedScenario 비교만 설명하세요.`
 }
 
 function buildCarrierPrompt(facts: Record<string, unknown>) {

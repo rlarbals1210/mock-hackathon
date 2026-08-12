@@ -144,14 +144,26 @@ export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistratio
     const baseline = baselineMatch.data
     if (!source || !baseline) return null
     const selectedScenario = picked === 'adjusted' ? adjustedScenario ?? baseline.current : baseline.current
+    const recommendation = source.recommendations[0] ?? null
+
+    // 서버의 추천 문장은 추천 시나리오를 기준으로 쓰여 있습니다.
+    // 사용자가 다른 시나리오를 고르면 그 문장은 지금 화면과 다른 비교를 말하므로 넘기지 않습니다.
+    const recommendationMatchesChoice = recommendation !== null && recommendation.scenarioId === selectedScenario.scenarioId
+
     return {
       requestId: source.requestId,
       matchId: source.matchId,
       cargo: source.cargo,
       current: baseline.current,
       selectedScenario,
-      recommendation: source.recommendations[0] ?? null,
-      explanationFacts: source.explanationFacts,
+      differences: {
+        candidateCount: selectedScenario.candidateCount - baseline.current.candidateCount,
+        expectedDispatchMinutes: selectedScenario.expectedDispatchMinutes - baseline.current.expectedDispatchMinutes,
+        expectedFare: selectedScenario.expectedFare.point - baseline.current.expectedFare.point,
+        loadingWindowMinutes: selectedScenario.loadingWindowMinutes - baseline.current.loadingWindowMinutes,
+      },
+      recommendation: recommendationMatchesChoice ? recommendation : null,
+      explanationFacts: recommendationMatchesChoice ? source.explanationFacts : [],
       predictionSources: source.predictionSources,
       warnings: source.warnings,
     }

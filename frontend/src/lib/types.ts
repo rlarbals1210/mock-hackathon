@@ -236,12 +236,25 @@ export type CatalogOptionsResponse = {
  */
 export type InsightSchemaVersion = 'match-insight-v1'
 
+export type ShipperInsightDifferences = {
+  candidateCount: number
+  expectedDispatchMinutes: number
+  expectedFare: number
+  loadingWindowMinutes: number
+}
+
 export type ShipperInsightFacts = {
   requestId: string
   matchId: string
   cargo: CargoSummary
   current: Scenario
   selectedScenario: Scenario
+  /** current에서 selectedScenario로 갈 때의 단순 뺄셈입니다. */
+  differences: ShipperInsightDifferences
+  /**
+   * 사용자가 고른 시나리오가 서버 추천과 같을 때만 채웁니다.
+   * 서버의 추천 문장은 추천 시나리오 기준으로 쓰여 있어서, 다른 시나리오를 고르면 서로 다른 비교가 섞입니다.
+   */
   recommendation: Recommendation | null
   explanationFacts: string[]
   predictionSources: Record<string, string>

@@ -35,6 +35,19 @@ function localAnalysis(choice: DecisionChoice, applied: string[], fareDelta: num
   return `최근 배차는 ${applied.join(' · ')}을 적용한 조정안을 선택했습니다. 기획자료 끝점 비교 기준으로 예상 운임은 ${formatCurrency(Math.abs(fareDelta))}, 예상 배차시간은 ${Math.abs(dispatchDelta)}분 줄어드는 방향이며, 탄소 값은 국내계수판 방식 B의 집계값으로 별도 표시했습니다.`
 }
 
+/** 선택한 시나리오의 확정된 숫자만으로 만드는 대체 문장입니다. 새 값을 계산하지 않습니다. */
+function describeSelectedScenario(facts: ShipperInsightFacts) {
+  const { current, selectedScenario: selected, differences } = facts
+  if (differences.loadingWindowMinutes === 0) {
+    return `등록한 상차 시간창 ${current.loadingWindowMinutes}분을 그대로 유지했습니다. 후보 운송인 ${current.candidateCount}명, 예상 배차시간 ${current.expectedDispatchMinutes}분, 예상 운임 ${formatCurrency(current.expectedFare.point)} 기준입니다.`
+  }
+  const fareDirection = differences.expectedFare <= 0 ? '내려가는' : '올라가는'
+  const dispatchDirection = differences.expectedDispatchMinutes <= 0 ? '줄어드는' : '늘어나는'
+  return `상차 가능 시간을 ${current.loadingWindowMinutes}분에서 ${selected.loadingWindowMinutes}분으로 넓히면 후보 운송인이 ${current.candidateCount}명에서 ${selected.candidateCount}명으로 바뀝니다. `
+    + `예상 배차시간은 ${current.expectedDispatchMinutes}분에서 ${selected.expectedDispatchMinutes}분으로 ${dispatchDirection} 방향이고, `
+    + `예상 운임은 ${formatCurrency(current.expectedFare.point)}에서 ${formatCurrency(selected.expectedFare.point)}으로 ${fareDirection} 방향입니다.`
+}
+
 export function MonthlyReport({ cargo, choice, levers, operations, insightFacts }: MonthlyReportProps) {
   const [showReport, setShowReport] = useState(false)
   const currentHours = getWindowHours(cargo.startMinutes, cargo.endMinutes) ?? 3
@@ -51,9 +64,13 @@ export function MonthlyReport({ cargo, choice, levers, operations, insightFacts 
   const fareDelta = selectedPrediction.fare - currentPrediction.fare
   const dispatchDelta = selectedPrediction.dispatchMinutes - currentPrediction.dispatchMinutes
   const carbon = getCarbonReference(cargo)
-  // 생성형 설명이 실패하면 서버가 확정한 사실 문장을 그대로 씁니다(인계서 6절).
-  const fallback = insightFacts?.explanationFacts.length
-    ? insightFacts.explanationFacts.join(' ')
+  // 생성형 설명이 실패하면 확정된 사실만으로 문장을 만듭니다(인계서 6절).
+  // 서버 추천과 같은 시나리오를 골랐을 때는 서버가 쓴 문장을 그대로 쓰고,
+  // 다른 시나리오를 골랐을 때는 선택한 시나리오의 실제 차이로 문장을 만듭니다.
+  const fallback = insightFacts
+    ? insightFacts.explanationFacts.length
+      ? insightFacts.explanationFacts.join(' ')
+      : describeSelectedScenario(insightFacts)
     : localAnalysis(choice, appliedLevers, fareDelta, dispatchDelta)
   const [analysis, setAnalysis] = useState(fallback)
   const [analysisSource, setAnalysisSource] = useState<'local' | 'gemini' | 'loading'>('local')
