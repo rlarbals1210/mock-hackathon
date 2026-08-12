@@ -36,7 +36,9 @@ pnpm lint
 
 ```text
 .
-├── ai/          # 모델·추론 확장 영역
+├── ai/               # 모델·추론 확장 영역
+│   ├── generate_data.py  # 가상데이터 생성기
+│   └── notebooks/         # phase1~5 분석 노트북
 ├── backend/     # FastAPI API 골격
 ├── frontend/    # React 제품 데모
 └── vercel.json  # 저장소 루트 배포 설정
