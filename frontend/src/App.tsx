@@ -57,7 +57,7 @@ function ShipperHeader({ role, onRoleChange }: { role: UserRole; onRoleChange: (
       </div>
       <div className="notification-wrap help-button">
         <button aria-expanded={helpOpen} aria-label="도움말" className="icon-button" onClick={() => setHelpOpen((value) => !value)} type="button"><Icon name="help" /></button>
-        {helpOpen && <div className="notification-popover" role="status"><strong>실시간 배차 도움말</strong><span>주황색은 선택·응답 대기, 초록색은 완료 상태입니다. 모든 선호 질문을 완료하면 운송인 연동이 시작됩니다.</span></div>}
+        {helpOpen && <div className="notification-popover" role="status"><strong>화주 배차 도움말</strong><span>필수 설정과 콜 등록을 완료한 뒤 현재 조건과 완화 조건을 비교할 수 있습니다.</span></div>}
       </div>
     </header>
   )
