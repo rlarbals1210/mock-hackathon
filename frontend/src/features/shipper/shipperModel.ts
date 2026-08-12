@@ -32,7 +32,14 @@ export type Prediction = {
   dispatchMinutes: number
   windowHours: number
   confidence: number
-  failureProbability: null
+  failureProbability: number | null
+}
+
+export type LeverState = {
+  windowHours: number
+  vehicleFlexible: boolean
+  dateShiftDays: number
+  timeChangeCostPerHour: number
 }
 
 export const preferenceGroups: {
@@ -208,6 +215,105 @@ export function interpolatePrediction(windowHours: number): Prediction {
     confidence: 78,
     failureProbability: null,
   }
+}
+
+// 레버 계수는 가상데이터 12,000건(v13) 실측값입니다.
+// 차종: 단일 대비 대체허용의 후보 3.1~3.5배·배차 0.70배가 시간창 구간과 무관하게 유지되어 상수로 씁니다.
+// 날짜: 생성기와 동일하게 후보·배차는 그대로 두고 운임과 유찰 위험만 움직입니다.
+export const vehicleFlexCandidateMultiplier = 3.3
+export const vehicleFlexDispatchMultiplier = 0.7
+export const vehicleFlexFareMultiplier = 0.97
+export const dateShiftFareMultiplier = 0.97
+export const dateShiftHours = 24
+export const maxDateShiftDays = 2
+
+// 시간변경비용 선택지는 원자료의 5개 구간(0/5천/8천/1.2만/2만원)을 그대로 씁니다.
+export const timeChangeCostOptions = [0, 5000, 8000, 12000, 20000]
+
+// 일반 콜 10,334건의 리드타임 구간별 실측 유찰률 (구간 중앙 리드타임 → 유찰률).
+// 긴급 콜은 리드타임이 짧으면서 유찰 계수가 반대 방향이라 곡선이 꺾이므로 제외했습니다.
+const failureRiskAnchors: [number, number][] = [
+  [16.6, 0.176],
+  [21, 0.131],
+  [26.3, 0.08],
+  [32.4, 0.033],
+  [39.7, 0.024],
+  [44.8, 0.017],
+  [50.8, 0.012],
+  [66.9, 0.01],
+]
+
+// 시간창 1일 이상 구간의 유찰률이 0.087→0.015로 떨어지는 실측치를 log 기울기로 환산한 값입니다.
+const failureWindowExponent = -0.824
+
+export const emptyLevers: LeverState = {
+  windowHours: 12,
+  vehicleFlexible: false,
+  dateShiftDays: 0,
+  timeChangeCostPerHour: 8000,
+}
+
+export function getLeadHours(cargo: CargoForm, now = new Date()) {
+  if (!cargo.loadingDate || cargo.startMinutes === null) return null
+  const loadingAt = new Date(`${cargo.loadingDate}T00:00:00`)
+  loadingAt.setMinutes(loadingAt.getMinutes() + cargo.startMinutes)
+  const hours = (loadingAt.getTime() - now.getTime()) / 3_600_000
+  return Math.max(1, hours)
+}
+
+export function getFailureRisk(leadHours: number, windowHours: number) {
+  const first = failureRiskAnchors[0]
+  const last = failureRiskAnchors[failureRiskAnchors.length - 1]
+  let base = leadHours <= first[0] ? first[1] : last[1]
+  for (let index = 0; index < failureRiskAnchors.length - 1; index += 1) {
+    const [leftHours, leftRisk] = failureRiskAnchors[index]
+    const [rightHours, rightRisk] = failureRiskAnchors[index + 1]
+    if (leadHours > leftHours && leadHours <= rightHours) {
+      const ratio = (leadHours - leftHours) / (rightHours - leftHours)
+      base = leftRisk + (rightRisk - leftRisk) * ratio
+      break
+    }
+  }
+  const windowFactor = Math.min(1, (Math.max(3, windowHours) / 3) ** failureWindowExponent)
+  // 원자료에서 관측된 최저 구간 유찰률이 1.0%라 그보다 낮은 값은 표시하지 않습니다.
+  return Math.min(0.25, Math.max(0.008, base * windowFactor))
+}
+
+export function predictWithLevers(leadHours: number, levers: LeverState): Prediction {
+  const base = interpolatePrediction(levers.windowHours)
+  const shiftedLead = leadHours + levers.dateShiftDays * dateShiftHours
+  const fareMultiplier = (levers.vehicleFlexible ? vehicleFlexFareMultiplier : 1)
+    * dateShiftFareMultiplier ** levers.dateShiftDays
+  return {
+    ...base,
+    candidates: Math.round(base.candidates * (levers.vehicleFlexible ? vehicleFlexCandidateMultiplier : 1)),
+    fare: Math.round((base.fare * fareMultiplier) / 1000) * 1000,
+    dispatchMinutes: Math.max(1, Math.round(base.dispatchMinutes * (levers.vehicleFlexible ? vehicleFlexDispatchMultiplier : 1))),
+    failureProbability: getFailureRisk(shiftedLead, levers.windowHours),
+  }
+}
+
+export function getDateShiftCost(levers: LeverState) {
+  return levers.timeChangeCostPerHour * dateShiftHours * levers.dateShiftDays
+}
+
+export function formatRisk(value: number | null) {
+  return value === null ? '미산출' : `${(value * 100).toFixed(1)}%`
+}
+
+export function describeLevers(levers: LeverState, currentHours: number) {
+  const applied: string[] = []
+  if (levers.windowHours > currentHours) applied.push(`상차 시간창 ${levers.windowHours}시간`)
+  if (levers.vehicleFlexible) applied.push('차종 대체 허용')
+  if (levers.dateShiftDays > 0) applied.push(`상차일 ${levers.dateShiftDays}일 연기`)
+  return applied
+}
+
+export function shiftLoadingDate(loadingDate: string, days: number) {
+  if (!loadingDate || days <= 0) return loadingDate
+  const date = new Date(`${loadingDate}T00:00:00`)
+  date.setDate(date.getDate() + days)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 export function getCarbonReference(cargo: CargoForm) {

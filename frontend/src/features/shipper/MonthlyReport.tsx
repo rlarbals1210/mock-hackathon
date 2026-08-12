@@ -1,40 +1,48 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../../components/Icon'
 import {
+  describeLevers,
+  emptyLevers,
   formatCargoWeight,
   formatCurrency,
+  formatRisk,
   formatTimeWindow,
   getCargoWeightKg,
   getCarbonReference,
+  getLeadHours,
   getWindowHours,
-  interpolatePrediction,
+  predictWithLevers,
   type CargoForm,
   type DecisionChoice,
+  type LeverState,
   type OperationLog,
 } from './shipperModel'
 
 type MonthlyReportProps = {
   cargo: CargoForm
   choice: DecisionChoice
-  adjustedHours: number
+  levers: LeverState
   operations: OperationLog[]
 }
 
-function localAnalysis(choice: DecisionChoice, adjustedHours: number, fareDelta: number, dispatchDelta: number) {
+function localAnalysis(choice: DecisionChoice, applied: string[], fareDelta: number, dispatchDelta: number) {
   if (!choice) return '아직 비교 결과가 선택되지 않았습니다. 조건 비교에서 현재 조건 또는 조정안을 선택하면 화주 관점의 자료 요약이 여기에 생성됩니다.'
-  if (choice === 'current') return '최근 배차는 등록한 상차 시간창을 그대로 유지했습니다. 기획자료의 참조 범위에서는 조건을 넓힐 때 후보 수와 배차시간이 개선되지만, 이번 선택은 일정 확정성을 우선한 결과입니다.'
-  return `최근 배차는 상차 가능 범위를 ${adjustedHours}시간으로 넓힌 조정안을 선택했습니다. 기획자료 끝점 비교 기준으로 예상 운임은 ${formatCurrency(Math.abs(fareDelta))}, 예상 배차시간은 ${Math.abs(dispatchDelta)}분 줄어드는 방향이며, 탄소 값은 국내계수판 방식 B의 집계값으로 별도 표시했습니다.`
+  if (choice === 'current') return '최근 배차는 등록한 조건을 그대로 유지했습니다. 기획자료의 참조 범위에서는 시간창·차종·상차일을 완화할 때 후보 수와 배차시간이 개선되지만, 이번 선택은 일정 확정성을 우선한 결과입니다.'
+  return `최근 배차는 ${applied.join(' · ')}을 적용한 조정안을 선택했습니다. 기획자료 끝점 비교 기준으로 예상 운임은 ${formatCurrency(Math.abs(fareDelta))}, 예상 배차시간은 ${Math.abs(dispatchDelta)}분 줄어드는 방향이며, 탄소 값은 국내계수판 방식 B의 집계값으로 별도 표시했습니다.`
 }
 
-export function MonthlyReport({ cargo, choice, adjustedHours, operations }: MonthlyReportProps) {
+export function MonthlyReport({ cargo, choice, levers, operations }: MonthlyReportProps) {
   const [showReport, setShowReport] = useState(false)
   const currentHours = getWindowHours(cargo.startMinutes, cargo.endMinutes) ?? 3
-  const currentPrediction = useMemo(() => interpolatePrediction(currentHours), [currentHours])
-  const selectedPrediction = useMemo(() => interpolatePrediction(choice === 'adjusted' ? adjustedHours : currentHours), [adjustedHours, choice, currentHours])
+  const leadHours = getLeadHours(cargo) ?? 24
+  const currentLevers = useMemo<LeverState>(() => ({ ...emptyLevers, windowHours: currentHours, timeChangeCostPerHour: levers.timeChangeCostPerHour }), [currentHours, levers.timeChangeCostPerHour])
+  const currentPrediction = useMemo(() => predictWithLevers(leadHours, currentLevers), [currentLevers, leadHours])
+  const selectedPrediction = useMemo(() => predictWithLevers(leadHours, choice === 'adjusted' ? levers : currentLevers), [choice, currentLevers, leadHours, levers])
+  const appliedLevers = useMemo(() => describeLevers(levers, currentHours), [currentHours, levers])
   const fareDelta = selectedPrediction.fare - currentPrediction.fare
   const dispatchDelta = selectedPrediction.dispatchMinutes - currentPrediction.dispatchMinutes
   const carbon = getCarbonReference(cargo)
-  const fallback = localAnalysis(choice, adjustedHours, fareDelta, dispatchDelta)
+  const fallback = localAnalysis(choice, appliedLevers, fareDelta, dispatchDelta)
   const [analysis, setAnalysis] = useState(fallback)
   const [analysisSource, setAnalysisSource] = useState<'local' | 'gemini' | 'loading'>('local')
 
@@ -57,10 +65,12 @@ export function MonthlyReport({ cargo, choice, adjustedHours, operations }: Mont
         item: cargo.item || '미선택',
         cargoDetail: cargo.cargoDescription || '미선택',
         cargoWeightKg: getCargoWeightKg(cargo.cargoWeight),
-        loadingWindow: choice === 'adjusted' ? `${adjustedHours}시간` : formatTimeWindow(cargo),
+        loadingWindow: choice === 'adjusted' ? `${levers.windowHours}시간` : formatTimeWindow(cargo),
+        appliedLevers: choice === 'adjusted' ? appliedLevers : [],
         candidates: selectedPrediction.candidates,
         fare: selectedPrediction.fare,
         dispatchMinutes: selectedPrediction.dispatchMinutes,
+        failureRisk: formatRisk(selectedPrediction.failureProbability),
         fareDelta,
         dispatchDelta,
         carbonKgPerOrder: carbon.value,
@@ -84,12 +94,12 @@ export function MonthlyReport({ cargo, choice, adjustedHours, operations }: Mont
       controller.abort()
       window.clearTimeout(timeout)
     }
-  }, [adjustedHours, cargo, carbon.basis, carbon.value, choice, dispatchDelta, fallback, fareDelta, selectedPrediction.candidates, selectedPrediction.dispatchMinutes, selectedPrediction.fare])
+  }, [appliedLevers, cargo, carbon.basis, carbon.value, choice, dispatchDelta, fallback, fareDelta, levers.windowHours, selectedPrediction.candidates, selectedPrediction.dispatchMinutes, selectedPrediction.failureProbability, selectedPrediction.fare])
 
-  const timeProposals = choice ? 1 : 0
+  const timeProposals = choice ? appliedLevers.length : 0
   const proposalAcceptance = choice === 'adjusted' ? 100 : choice === 'current' ? 0 : null
   const statusRows = [
-    ['최근 선택', choice === 'adjusted' ? '조정안 사용' : choice === 'current' ? '현재 조건 유지' : '미선택'],
+    ['최근 선택', choice === 'adjusted' ? `조정안 사용 · ${appliedLevers.join(' · ')}` : choice === 'current' ? '현재 조건 유지' : '미선택'],
     ['운송인 응답', choice ? '응답 대기' : '선택 대기'],
     ['최근 배차 결과', choice ? '조건 등록 완료 · 응답 대기' : '조건 조합 전'],
   ]
@@ -122,7 +132,7 @@ export function MonthlyReport({ cargo, choice, adjustedHours, operations }: Mont
         </article>
         <article className="operation-analysis panel-v3">
           <div className="section-heading-v3"><Icon name="chart" /><div><h2>운영 성과 분석</h2><p>원본 표본과 이번 데모 선택을 분리 표시</p></div></div>
-          <div className="operation-analysis__stats"><div><span>시간 제안</span><strong>{timeProposals}건</strong></div><div><span>제안 수락률</span><strong>{proposalAcceptance === null ? '미산출' : `${proposalAcceptance}%`}</strong></div><div><span>성사 중앙 배차</span><strong>{choice ? `${selectedPrediction.dispatchMinutes}분` : '미선택'}</strong></div></div>
+          <div className="operation-analysis__stats"><div><span>적용 레버</span><strong>{timeProposals}개</strong></div><div><span>제안 수락률</span><strong>{proposalAcceptance === null ? '미산출' : `${proposalAcceptance}%`}</strong></div><div><span>성사 중앙 배차</span><strong>{choice ? `${selectedPrediction.dispatchMinutes}분` : '미선택'}</strong></div></div>
           <div className="comparison-bars"><div><span>배차시간</span><i><b style={{ width: '100%' }} /></i><em>40</em></div><div><span>선택 결과</span><i><b className="is-selected" style={{ width: `${Math.max(15, (selectedPrediction.dispatchMinutes / 40) * 100)}%` }} /></i><em>{selectedPrediction.dispatchMinutes}</em></div><div><span>예상운임</span><i><b style={{ width: '100%' }} /></i><em>42만</em></div><div><span>선택 결과</span><i><b className="is-selected" style={{ width: `${(selectedPrediction.fare / 420000) * 100}%` }} /></i><em>{Math.round(selectedPrediction.fare / 10000)}만</em></div></div>
         </article>
       </section>
@@ -136,9 +146,9 @@ export function MonthlyReport({ cargo, choice, adjustedHours, operations }: Mont
         <div className="modal-backdrop report-modal-backdrop" role="presentation">
           <section aria-labelledby="report-dialog-title" aria-modal="true" className="report-dialog" role="dialog">
             <header><div><span className="eyebrow">MOV!N DATA REPORT · 2026.08</span><h2 id="report-dialog-title">화주 배차조건 선택 리포트</h2><p>{cargo.origin || '미선택'} → {cargo.destination || '미선택'} · {cargo.vehicle || '미선택'} · {cargo.item || '미선택'} · {cargo.cargoDescription || '품목 상세 미입력'} · {formatCargoWeight(getCargoWeightKg(cargo.cargoWeight))}</p></div><button aria-label="리포트 닫기" onClick={() => setShowReport(false)} type="button">×</button></header>
-            <div className="report-dialog__summary"><article><span>최근 선택</span><strong>{statusRows[0][1]}</strong></article><article><span>예상 배차</span><strong>{choice ? `${selectedPrediction.dispatchMinutes}분` : '미선택'}</strong></article><article><span>예상 운임</span><strong>{choice ? formatCurrency(selectedPrediction.fare) : '미선택'}</strong></article><article><span>탄소 참고</span><strong>{carbon.value}kgCO₂e</strong></article></div>
+            <div className="report-dialog__summary"><article><span>최근 선택</span><strong>{statusRows[0][1]}</strong></article><article><span>예상 배차</span><strong>{choice ? `${selectedPrediction.dispatchMinutes}분` : '미선택'}</strong></article><article><span>예상 운임</span><strong>{choice ? formatCurrency(selectedPrediction.fare) : '미선택'}</strong></article><article><span>유찰 위험</span><strong>{choice ? formatRisk(selectedPrediction.failureProbability) : '미선택'}</strong></article><article><span>탄소 참고</span><strong>{carbon.value}kgCO₂e</strong></article></div>
             <section><h3>Gemini Flash 자료 해석</h3><p>{analysis}</p></section>
-            <section><h3>예상 결과 산정 기준</h3><ul><li>수락 가능 차주 수는 등록한 상차 시간과 조정한 시간 범위를 비교해 추정했습니다.</li><li>예상 운임과 배차시간은 현재 조건과 시간 조정안의 비교값입니다.</li><li>탄소 감축량은 국내계수판 방식 B를 적용했습니다.</li><li>톨비 등 별도 비용은 예상 운임에 포함되지 않습니다.</li></ul></section>
+            <section><h3>예상 결과 산정 기준</h3><ul><li>수락 가능 차주 수는 상차 시간창과 차종 대체 허용 여부를 함께 반영해 추정했습니다.</li><li>차종 대체 계수(후보 3.3배·배차 0.7배)와 리드타임별 유찰 위험은 가상데이터 12,000건의 실측값입니다.</li><li>상차일 연기는 후보 수와 배차시간을 바꾸지 않고 유찰 위험과 운임에만 반영됩니다.</li><li>예상 운임과 배차시간은 현재 조건과 조정안의 비교값입니다.</li><li>탄소 감축량은 국내계수판 방식 B를 적용했습니다.</li><li>톨비 등 별도 비용은 예상 운임에 포함되지 않습니다.</li></ul></section>
             <footer><p>인쇄 창에서 ‘PDF로 저장’을 선택하면 파일로 보관할 수 있습니다.</p><div><button onClick={() => setShowReport(false)} type="button">닫기</button><button className="primary-v3" onClick={() => window.print()} type="button"><Icon name="chart" size={17} /> 인쇄 / PDF 저장</button></div></footer>
           </section>
         </div>
