@@ -209,9 +209,74 @@ function OrderBoardScreen({ scanning, preferences }: { scanning: boolean; prefer
   )
 }
 
+function compareCandidates(target: Candidate, baseline: Candidate) {
+  const targetCost = target.fuelCost + target.emptyCost
+  const baselineCost = baseline.fuelCost + baseline.emptyCost
+  return {
+    costDiff: targetCost - baselineCost,
+    durationDiff: target.duration - baseline.duration,
+    fareDiff: target.fare - baseline.fare,
+    netDiff: target.net - baseline.net,
+    emptyKmDiff: target.emptyKm - baseline.emptyKm,
+    hourlyNetDiff: target.net / target.duration - baseline.net / baseline.duration,
+  }
+}
+
+// 규칙 기반 템플릿. Gemini API 키 연동 후에는 diff 값을 넘겨 자연어 요약으로 교체.
+function buildComparisonSummary(diff: ReturnType<typeof compareCandidates>) {
+  const fareText = diff.fareDiff === 0
+    ? '운임은 1순위와 같고'
+    : `운임은 ${Math.abs(diff.fareDiff).toFixed(1)}만원 ${diff.fareDiff > 0 ? '높지만' : '낮고'}`
+  const netText = diff.netDiff === 0
+    ? '순수익도 같습니다'
+    : `순수익은 ${Math.abs(diff.netDiff).toFixed(1)}만원 ${diff.netDiff > 0 ? '더 많습니다' : '적습니다'}`
+  const durationText = diff.durationDiff === 0
+    ? '운행시간은 1순위와 같습니다'
+    : `운행시간은 ${Math.abs(diff.durationDiff)}시간 ${diff.durationDiff > 0 ? '더 걸립니다' : '덜 걸립니다'}`
+  return `1순위 대비 ${fareText}, ${netText}. ${durationText}.`
+}
+
+function formatDiff(value: number, unit: string, decimals: number) {
+  if (Math.abs(value) < 0.05) return `±0${unit}`
+  return `${value > 0 ? '+' : ''}${value.toFixed(decimals)}${unit}`
+}
+
+function CandidateComparisonPanel({ candidate, baseline }: { candidate: Candidate; baseline: Candidate }) {
+  const diff = compareCandidates(candidate, baseline)
+  const rows: { label: string; value: number; unit: string; decimals: number; emphasis?: boolean }[] = [
+    { label: '운행비', value: diff.costDiff, unit: '만원', decimals: 1 },
+    { label: '운행시간', value: diff.durationDiff, unit: '시간', decimals: 0 },
+    { label: '표면운임', value: diff.fareDiff, unit: '만원', decimals: 1 },
+    { label: '순수익', value: diff.netDiff, unit: '만원', decimals: 1, emphasis: true },
+    { label: '공차거리', value: diff.emptyKmDiff, unit: 'km', decimals: 0 },
+    { label: '시간당 순수익', value: diff.hourlyNetDiff, unit: '만원/시간', decimals: 1 },
+  ]
+  return (
+    <section aria-live="polite" className="candidate-compare">
+      <div className="candidate-compare-head">
+        <Icon name="compare" size={18} />
+        <strong>1순위 대비 비교</strong>
+      </div>
+      <div className="candidate-compare-grid">
+        {rows.map((row) => (
+          <div className={`compare-row${row.emphasis ? ' is-emphasis' : ''}`} key={row.label}>
+            <small>{row.label}</small>
+            <b className={row.value > 0.05 ? 'is-up' : row.value < -0.05 ? 'is-down' : ''}>
+              {formatDiff(row.value, row.unit, row.decimals)}
+            </b>
+          </div>
+        ))}
+      </div>
+      <p className="candidate-compare-summary">{buildComparisonSummary(diff)}</p>
+    </section>
+  )
+}
+
 function CandidateSelectScreen({ onConfirm }: { onConfirm: (candidate: Candidate) => void }) {
   const [selected, setSelected] = useState(1)
-  const selectedCandidate = candidates.find((candidate) => candidate.id === selected) ?? candidates[0]
+  const recommendedCandidate = candidates[0]
+  const selectedCandidate = candidates.find((candidate) => candidate.id === selected) ?? recommendedCandidate
+  const isComparingAlternative = selectedCandidate.id !== recommendedCandidate.id
   return (
     <div className="carrier-scroll candidate-screen">
       <section className="safety-brief">
@@ -246,11 +311,12 @@ function CandidateSelectScreen({ onConfirm }: { onConfirm: (candidate: Candidate
                 <span><small>공차</small><b>{candidate.emptyCost.toFixed(1)}만</b></span>
                 <span className="net-line"><small>실수령</small><b>{candidate.net}만원</b></span>
               </span>
-              {isSelected && <span className="recommendation-label">추천</span>}
+              {candidate.id === recommendedCandidate.id && <span className="recommendation-label">추천</span>}
             </button>
           )
         })}
       </div>
+      {isComparingAlternative && <CandidateComparisonPanel baseline={recommendedCandidate} candidate={selectedCandidate} />}
       <button className="button button--primary carrier-wide-button" onClick={() => onConfirm(selectedCandidate)} type="button">이 콜 선택하기</button>
       <p className="carrier-choice-note"><Icon name="info" size={17} /> 최종 선택은 운송인에게 있습니다</p>
     </div>
