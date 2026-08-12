@@ -1,121 +1,107 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
+import { Icon, type IconName } from './components/Icon'
+import { RoleSwitch, type UserRole } from './components/RoleSwitch'
+import { CarrierWorkspace } from './features/carrier/CarrierWorkspace'
+import { ShipperScreen, type ShipperSection } from './features/shipper/ShipperScreens'
+
+const shipperNavigation: { id: ShipperSection; label: string; icon: IconName }[] = [
+  { id: 'dashboard', label: '대시보드', icon: 'dashboard' },
+  { id: 'register', label: '화물 등록', icon: 'plus' },
+  { id: 'compare', label: '조건 비교', icon: 'compare' },
+  { id: 'report', label: '월간 리포트', icon: 'chart' },
+  { id: 'chat', label: '채팅', icon: 'chat' },
+]
+
+function Brand() {
+  return (
+    <div className="brand-block">
+      <strong>Mov!n</strong>
+      <span>물류의 이동을 쉽게</span>
+    </div>
+  )
+}
+
+function Sidebar({ section, onNavigate }: { section: ShipperSection; onNavigate: (section: ShipperSection) => void }) {
+  return (
+    <aside className="sidebar">
+      <Brand />
+      <nav aria-label="화주·주선사 메뉴">
+        {shipperNavigation.map((item) => (
+          <button className={section === item.id ? 'is-active' : ''} key={item.id} onClick={() => onNavigate(item.id)} type="button">
+            <Icon name={item.icon} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="sidebar-profile">
+        <span className="avatar">화</span>
+        <span><small>화주 계정</small><strong>화주 계정</strong></span>
+        <Icon name="chevron" size={18} />
+      </div>
+    </aside>
+  )
+}
+
+function ShipperHeader({ role, onRoleChange, onHelp }: { role: UserRole; onRoleChange: (role: UserRole) => void; onHelp: () => void }) {
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  return (
+    <header className="top-header">
+      <div className="mobile-brand"><Brand /></div>
+      <div className="header-spacer" />
+      <RoleSwitch onChange={onRoleChange} role={role} />
+      <div className="notification-wrap">
+        <button aria-expanded={notificationsOpen} aria-label="알림" className="icon-button" onClick={() => setNotificationsOpen((value) => !value)} type="button"><Icon name="bell" /></button>
+        {notificationsOpen && <div className="notification-popover" role="status"><strong>새 알림이 없습니다.</strong><span>중요한 배차 변경이 생기면 이곳에 알려드려요.</span></div>}
+      </div>
+      <button aria-label="도움말" className="icon-button help-button" onClick={onHelp} type="button"><Icon name="help" /></button>
+    </header>
+  )
+}
+
+function MobileShipperNav({ section, onNavigate }: { section: ShipperSection; onNavigate: (section: ShipperSection) => void }) {
+  const items = shipperNavigation.filter((item) => item.id !== 'compare')
+  return (
+    <nav className="mobile-shipper-nav" aria-label="모바일 화주 메뉴">
+      {items.map((item) => (
+        <button className={section === item.id || (item.id === 'register' && section === 'compare') ? 'is-active' : ''} key={item.id} onClick={() => onNavigate(item.id)} type="button">
+          <Icon name={item.icon} />
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
+  )
+}
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [role, setRole] = useState<UserRole>('shipper')
+  const [shipperSection, setShipperSection] = useState<ShipperSection>('register')
+
+  const changeRole = (nextRole: UserRole) => {
+    setRole(nextRole)
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }
+
+  const navigateShipper = (section: ShipperSection) => {
+    setShipperSection(section)
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }
+
+  if (role === 'carrier') {
+    return <CarrierWorkspace onReturnToShipper={() => changeRole('shipper')} />
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <div className="app-shell">
+      <Sidebar onNavigate={navigateShipper} section={shipperSection} />
+      <div className="shipper-shell">
+        <ShipperHeader onHelp={() => navigateShipper('chat')} onRoleChange={changeRole} role={role} />
+        <main className="shipper-main">
+          <ShipperScreen onNavigate={navigateShipper} section={shipperSection} />
+        </main>
+      </div>
+      <MobileShipperNav onNavigate={navigateShipper} section={shipperSection} />
+    </div>
   )
 }
 
