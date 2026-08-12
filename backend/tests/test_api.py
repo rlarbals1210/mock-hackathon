@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_feedback_store
+from app.api.dependencies import get_feedback_store, get_matching_engine
+from app.core.config import settings
 from app.main import app
+from app.services.data_repository import MatchingDataRepository
 from app.services.feedback_store import FeedbackStore
+from app.services.matching_engine import MatchingEngine
+from app.services.model_service import MatchingModelService
 from tests.test_matching_engine import shipper_payload
 
 
+test_engine = MatchingEngine(
+    MatchingDataRepository(Path("/tmp/movin-api-test-missing.xlsx"), allow_demo_data=True),
+    MatchingModelService(settings.matching_model_path),
+)
+app.dependency_overrides[get_matching_engine] = lambda: test_engine
 client = TestClient(app, raise_server_exceptions=False)
 
 
@@ -35,12 +46,12 @@ def test_shipper_contract():
     body = response.json()
     assert body["requestId"] == "shipper-test-001"
     assert len(body["timeWindowScenarios"]) == 4
-    assert body["current"]["failureProbability"] is None
-    assert body["predictionSources"]["failureProbability"] == "unavailable"
+    assert 0 <= body["current"]["failureProbability"] <= 1
+    assert body["predictionSources"]["failureProbability"] == "hist_gradient_boosting_v13"
 
 
 def test_carrier_contract():
-    response = client.get("/api/v1/matches/carrier/D00001?limit=2")
+    response = client.get("/api/v1/matches/carrier/D07980?limit=2")
     assert response.status_code == 200
     recommendation = response.json()["recommendations"][0]
     assert set(recommendation) == {

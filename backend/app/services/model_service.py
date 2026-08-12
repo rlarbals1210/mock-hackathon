@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from math import isfinite
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -151,15 +152,27 @@ class MatchingModelService:
             point_ratio = float(np.exp(bundle["운임모델"].predict(xb)[0]))
             min_ratio = float(np.exp(bundle["운임모델_하한"].predict(xb)[0]))
             max_ratio = float(np.exp(bundle["운임모델_상한"].predict(xb)[0]))
-            values = sorted((
+            if (
+                not all(isfinite(value) and value > 0 for value in (point_ratio, min_ratio, max_ratio))
+                or not isfinite(failure_probability)
+                or not 0 <= failure_probability <= 1
+            ):
+                raise ValueError("모델 B가 유효하지 않은 숫자를 반환했습니다.")
+            fare_point = int(round(point_ratio * context["base_fare_krw"]))
+            fare_min = min(
+                fare_point,
                 int(round(min_ratio * context["base_fare_krw"])),
-                int(round(point_ratio * context["base_fare_krw"])),
                 int(round(max_ratio * context["base_fare_krw"])),
-            ))
+            )
+            fare_max = max(
+                fare_point,
+                int(round(min_ratio * context["base_fare_krw"])),
+                int(round(max_ratio * context["base_fare_krw"])),
+            )
             return ScenarioModelResult(
-                fare_point=values[1],
-                fare_min=values[0],
-                fare_max=values[2],
+                fare_point=fare_point,
+                fare_min=fare_min,
+                fare_max=fare_max,
                 failure_probability=max(0.0, min(1.0, failure_probability)),
             )
         except Exception as exc:
@@ -218,7 +231,10 @@ class MatchingModelService:
             }
             frame = pd.DataFrame([row])[bundle["features"]].copy()
             frame = self._categorize(frame, bundle["category_levels"])
-            return float(bundle["model"].predict_proba(frame)[0, 1])
+            probability = float(bundle["model"].predict_proba(frame)[0, 1])
+            if not isfinite(probability):
+                raise ValueError("모델 A가 유효하지 않은 확률을 반환했습니다.")
+            return max(0.0, min(1.0, probability))
         except Exception as exc:
             warning = f"모델 A 추론을 건너뛰었습니다: {exc.__class__.__name__}"
             if warning not in self._warnings:

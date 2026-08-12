@@ -14,6 +14,8 @@
 6. 개발자 1은 `frontend/vite.config.ts`, `frontend/src/vite-env.d.ts`, 저장소 루트의 `.env.example`을 수정하지 않는다. `backend/.env.example`은 백엔드 전용으로 개발자 1이 관리한다.
 7. 병합은 UI mock 모드를 먼저 병합하고, 이후 매칭 엔진을 병합한다. 실제 API 전환은 프론트의 `VITE_USE_MOCK` 플래그로 제어한다.
 
+학습 모델 번들은 저장소의 `ai/models/`에 두며, 별도 경로를 사용할 때만 백엔드의 `MATCHING_MODEL_DIR` 환경변수를 지정한다. 생성 엑셀은 기본적으로 `ai/data/유연오더_가상데이터_v13.xlsx`에서 읽고, 배포 환경에서는 `MATCHING_DATA_FILE`로 경로를 지정할 수 있다.
+
 ## 2. 공통 규칙
 
 - Base URL: `{VITE_API_URL}`
@@ -68,13 +70,13 @@
 
 ### 응답 예시
 
-아래 JSON은 프론트 mock의 기준 형태다. 실제 수치는 데이터와 모델 버전에 따라 달라진다.
+아래 JSON은 이 문서의 요청 예시를 v13 생성 데이터와 저장된 학습 모델에 입력해 얻은 실제 응답이다. `generatedAt`만 문서 재현성을 위해 고정했다. 모델이나 데이터 버전이 바뀌면 수치는 달라질 수 있다.
 
 ```json
 {
   "requestId": "shipper-demo-001",
   "matchId": "M-20260812-000001",
-  "generatedAt": "2026-08-12T16:20:00+09:00",
+  "generatedAt": "2026-08-12T16:40:12+09:00",
   "cargo": {
     "callId": "C0042",
     "route": "부산신항 → 김포",
@@ -87,103 +89,127 @@
   "current": {
     "scenarioId": "CURRENT",
     "loadingWindowMinutes": 180,
-    "candidateCount": 111,
-    "expectedDispatchMinutes": 40,
+    "candidateCount": 44,
+    "expectedDispatchMinutes": 70,
     "expectedFare": {
-      "point": 420000,
-      "min": 398000,
-      "max": 447000
+      "point": 513579,
+      "min": 454000,
+      "max": 577212
     },
-    "failureProbability": 0.14,
+    "failureProbability": 0.10199407308190772,
     "confidence": 0.78
   },
   "timeWindowScenarios": [
     {
       "scenarioId": "WINDOW_180",
       "loadingWindowMinutes": 180,
-      "candidateCount": 111,
-      "expectedDispatchMinutes": 40,
+      "candidateCount": 44,
+      "expectedDispatchMinutes": 70,
       "expectedFare": {
-        "point": 420000,
-        "min": 398000,
-        "max": 447000
+        "point": 513579,
+        "min": 454000,
+        "max": 577212
       },
-      "failureProbability": 0.14,
+      "failureProbability": 0.10199407308190772,
       "confidence": 0.78
     },
     {
       "scenarioId": "WINDOW_480",
       "loadingWindowMinutes": 480,
-      "candidateCount": 294,
-      "expectedDispatchMinutes": 29,
+      "candidateCount": 111,
+      "expectedDispatchMinutes": 50,
       "expectedFare": {
-        "point": 411000,
-        "min": 390000,
-        "max": 438000
+        "point": 512910,
+        "min": 454000,
+        "max": 573493
       },
-      "failureProbability": 0.09,
+      "failureProbability": 0.09555396551106422,
       "confidence": 0.78
     },
     {
       "scenarioId": "WINDOW_1440",
       "loadingWindowMinutes": 1440,
-      "candidateCount": 883,
-      "expectedDispatchMinutes": 19,
+      "candidateCount": 353,
+      "expectedDispatchMinutes": 33,
       "expectedFare": {
-        "point": 397000,
-        "min": 377000,
-        "max": 424000
+        "point": 482714,
+        "min": 454000,
+        "max": 508891
       },
-      "failureProbability": 0.05,
-      "confidence": 0.76
+      "failureProbability": 0.014465205582949699,
+      "confidence": 0.78
     },
     {
       "scenarioId": "WINDOW_2880",
       "loadingWindowMinutes": 2880,
-      "candidateCount": 1766,
-      "expectedDispatchMinutes": 15,
+      "candidateCount": 652,
+      "expectedDispatchMinutes": 27,
       "expectedFare": {
-        "point": 380000,
-        "min": 361000,
-        "max": 407000
+        "point": 475342,
+        "min": 454000,
+        "max": 507252
       },
-      "failureProbability": 0.03,
-      "confidence": 0.74
+      "failureProbability": 0.004534240324079735,
+      "confidence": 0.78
     }
   ],
   "recommendations": [
     {
       "type": "TIME_WINDOW",
-      "description": "상차 가능 시간을 3시간에서 8시간으로 확대",
-      "shipperAcceptanceProbability": 0.71,
-      "scenarioId": "WINDOW_480",
-      "candidateIncrease": 183,
-      "dispatchMinutesChange": -11,
-      "fareChange": -9000
+      "description": "상차 가능 시간을 3시간에서 24시간으로 확대",
+      "shipperAcceptanceProbability": 0.0498740259299625,
+      "scenarioId": "WINDOW_1440",
+      "candidateIncrease": 309,
+      "dispatchMinutesChange": -37,
+      "fareChange": -30865
     }
   ],
   "carriers": [
     {
-      "carrierId": "D00127",
+      "carrierId": "D00051",
       "score": 87,
-      "emptyDistanceKm": 12,
-      "estimatedNetIncome": 340000,
-      "preferenceMatches": ["영남 출발 선호", "수도권 도착 선호"],
+      "emptyDistanceKm": 6,
+      "estimatedNetIncome": 237364,
+      "preferenceMatches": ["영남 출발 적합", "수도권 도착 선호"],
       "warning": null
     },
     {
-      "carrierId": "D00481",
-      "score": 82,
-      "emptyDistanceKm": 18,
-      "estimatedNetIncome": 331000,
-      "preferenceMatches": ["호환 차종", "주간 상차 선호"],
-      "warning": "상차지까지 예상 이동 35분"
+      "carrierId": "D04989",
+      "score": 86,
+      "emptyDistanceKm": 8,
+      "estimatedNetIncome": 235264,
+      "preferenceMatches": ["영남 출발 적합", "수도권 도착 선호"],
+      "warning": null
+    },
+    {
+      "carrierId": "D10450",
+      "score": 86,
+      "emptyDistanceKm": 8,
+      "estimatedNetIncome": 235264,
+      "preferenceMatches": ["영남 출발 적합", "수도권 도착 선호"],
+      "warning": null
+    },
+    {
+      "carrierId": "D03537",
+      "score": 85,
+      "emptyDistanceKm": 6,
+      "estimatedNetIncome": 237364,
+      "preferenceMatches": ["영남 출발 적합", "수도권 도착 선호"],
+      "warning": null
+    },
+    {
+      "carrierId": "D03629",
+      "score": 85,
+      "emptyDistanceKm": 7,
+      "estimatedNetIncome": 236314,
+      "preferenceMatches": ["영남 출발 적합", "수도권 도착 선호"],
+      "warning": null
     }
   ],
   "explanationFacts": [
-    "상차 가능 시간을 3시간에서 8시간으로 넓히면 후보 운송인이 111명에서 294명으로 증가합니다.",
-    "같은 비교에서 예상 배차시간은 40분에서 29분으로 줄어듭니다.",
-    "예상 운임은 420000원에서 411000원으로 낮아지는 방향입니다."
+    "상차 가능 시간을 3시간에서 24시간으로 넓히면 후보 운송인이 44명에서 353명으로 증가합니다.",
+    "같은 비교에서 예상 배차시간은 70분에서 33분으로 바뀝니다.",
+    "예상 운임은 513579원에서 482714원으로 바뀌는 방향입니다."
   ],
   "predictionSources": {
     "candidateCount": "supply_pool_v13",
@@ -223,50 +249,50 @@
 
 ```json
 {
-  "carrierId": "D00127",
-  "generatedAt": "2026-08-12T16:20:00+09:00",
+  "carrierId": "D00051",
+  "generatedAt": "2026-08-12T16:40:12+09:00",
   "recommendations": [
     {
-      "callId": "C0042",
-      "route": "부산신항 → 김포",
-      "loadingTime": "2026-08-13T17:30:00+09:00",
-      "emptyDistanceKm": 12,
-      "durationHours": 7.1,
-      "fare": 454000,
-      "fuelCost": 74000,
-      "emptyCost": 14000,
-      "netIncome": 366000,
-      "tags": ["수도권 도착", "선호 권역 일치"],
+      "callId": "C2890",
+      "route": "대전유성 → 이천",
+      "loadingTime": "2026-08-14T17:00:00+09:00",
+      "emptyDistanceKm": 11,
+      "durationHours": 3.3,
+      "fare": 234000,
+      "fuelCost": 77731,
+      "emptyCost": 11550,
+      "netIncome": 144719,
+      "tags": ["선호 권역 일치"],
       "warning": null,
-      "score": 87
+      "score": 88
     },
     {
-      "callId": "C0178",
-      "route": "대전유성 → 김해",
-      "loadingTime": "2026-08-13T19:00:00+09:00",
-      "emptyDistanceKm": 34,
-      "durationHours": 4.8,
-      "fare": 350000,
-      "fuelCost": 51000,
-      "emptyCost": 37000,
-      "netIncome": 262000,
-      "tags": ["영남 귀가 방향", "야간 운행 가능"],
-      "warning": "공차거리가 30km를 초과합니다.",
-      "score": 76
+      "callId": "C6197",
+      "route": "대전유성 → 이천",
+      "loadingTime": "2026-08-22T09:00:00+09:00",
+      "emptyDistanceKm": 11,
+      "durationHours": 3.3,
+      "fare": 234000,
+      "fuelCost": 77731,
+      "emptyCost": 11550,
+      "netIncome": 144719,
+      "tags": ["선호 권역 일치"],
+      "warning": null,
+      "score": 88
     },
     {
-      "callId": "C0224",
-      "route": "창원공단 → 평택",
-      "loadingTime": "2026-08-14T09:00:00+09:00",
-      "emptyDistanceKm": 19,
-      "durationHours": 6.0,
-      "fare": 406000,
-      "fuelCost": 63000,
-      "emptyCost": 21000,
-      "netIncome": 322000,
-      "tags": ["호환 차종", "주간 상차"],
+      "callId": "C6247",
+      "route": "대전유성 → 이천",
+      "loadingTime": "2026-08-24T12:00:00+09:00",
+      "emptyDistanceKm": 11,
+      "durationHours": 3.3,
+      "fare": 234000,
+      "fuelCost": 77731,
+      "emptyCost": 11550,
+      "netIncome": 144719,
+      "tags": ["선호 권역 일치"],
       "warning": null,
-      "score": 74
+      "score": 88
     }
   ],
   "predictionSources": {

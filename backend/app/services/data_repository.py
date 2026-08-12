@@ -314,21 +314,43 @@ class MatchingDataRepository:
             ("R04", 5): 326000, ("R04", 11): 406000, ("R04", 25): 520000,
             ("R12", 5): 281000, ("R12", 11): 350000, ("R12", 25): 439000,
         }
+        def pseudo(index: int, salt: int) -> float:
+            value = (index + salt * 0x9E3779B9) & 0xFFFFFFFF
+            value ^= value >> 16
+            value = (value * 0x7FEB352D) & 0xFFFFFFFF
+            value ^= value >> 15
+            value = (value * 0x846CA68B) & 0xFFFFFFFF
+            value ^= value >> 16
+            return value / 2**32
+
+        def weighted(value: float, options: tuple[tuple[Any, float], ...]) -> Any:
+            cumulative = 0.0
+            for item, probability in options:
+                cumulative += probability
+                if value < cumulative:
+                    return item
+            return options[-1][0]
+
+        garage_options = (("영남", .30), ("수도권", .33), ("충청", .14), ("호남", .13), ("강원제주", .10))
+        tonnage_options = ((5, .50), (11, .33), (25, .17))
+        body_options = (("냉동", .18), ("냉장", .02), ("윙바디", .29), ("카고", .335), ("탑차", .175))
+        radius_options = ((1, .40), (2, .40), (3, .20))
+        preferred_options = (("영남", .30), ("수도권", .27), ("충청", .17), ("호남", .15), ("강원제주", .11))
         carriers = tuple(
             CarrierRecord(
                 carrier_id=f"D{index:05d}",
-                garage_region="영남" if index % 3 else "충청",
-                tonnage=11 if index % 4 else 25,
-                body_type="카고" if index % 5 else "윙바디",
-                activity_radius=2,
-                availability_phase=((index * 37) % 100) / 100,
-                night_allowed=index % 2 == 0,
-                reliability=0.82 + (index % 15) / 100,
-                preferred_region="수도권" if index % 3 else "영남",
-                historical_acceptance_rate=0.4 + (index % 5) / 10,
-                historical_empty_km=8 + index % 28,
+                garage_region=weighted(pseudo(index, 1), garage_options),
+                tonnage=weighted(pseudo(index, 2), tonnage_options),
+                body_type=weighted(pseudo(index, 3), body_options),
+                activity_radius=weighted(pseudo(index, 4), radius_options),
+                availability_phase=pseudo(index, 5),
+                night_allowed=pseudo(index, 6) < .42,
+                reliability=round(.60 + pseudo(index, 7) * .399, 3),
+                preferred_region=weighted(pseudo(index, 8), preferred_options),
+                historical_acceptance_rate=.25 + pseudo(index, 9) * .65,
+                historical_empty_km=1 + int(pseudo(index, 10) * 89),
             )
-            for index in range(1, 181)
+            for index in range(1, 11_801)
         )
         calls = (
             CallRecord("C0042", "S018", "R01", datetime(2026, 8, 13, 17, 30, tzinfo=KST), datetime(2026, 8, 12, 15, 30, tzinfo=KST), 26, 180, 11, "카고", "철강재", 9500, 10, 454000, 454000, False, False, False, False, False, False, "원화주직접", False),

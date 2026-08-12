@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     def matching_model_path(self) -> Path:
         if self.matching_model_dir:
             return Path(self.matching_model_dir).expanduser().resolve()
-        return self.repository_root / "ai" / "data" / "out" / "models"
+        return self.repository_root / "ai" / "models"
 
     @property
     def feedback_path(self) -> Path:

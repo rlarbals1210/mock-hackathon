@@ -86,9 +86,9 @@ def test_shipper_carriers_respect_vehicle_and_region_filters(engine):
 
 
 def test_carrier_response_uses_krw_and_expected_fields(engine):
-    response = engine.match_carrier("D00001", limit=3)
+    response = engine.match_carrier("D07980", limit=3)
 
-    assert response.carrierId == "D00001"
+    assert response.carrierId == "D07980"
     assert 1 <= len(response.recommendations) <= 3
     for result in response.recommendations:
         assert result.fare >= 100000

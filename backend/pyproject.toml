@@ -23,3 +23,9 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=8.4.0",
 ]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated.*",
+    "ignore:Setting the shape on a NumPy array has been deprecated.*:DeprecationWarning",
+]
