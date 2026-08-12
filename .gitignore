@@ -2,6 +2,7 @@
 node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/.vercel/
 
 # Python / backend & ai
 __pycache__/
