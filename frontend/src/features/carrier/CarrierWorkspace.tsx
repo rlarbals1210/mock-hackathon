@@ -398,7 +398,10 @@ function BackhaulDecisionScreen({ offer, onAccept, onGoHome }: { offer: Backhaul
 function TripSummaryScreen({ selectedCandidate, acceptedOffers, onRestart }: { selectedCandidate: Candidate | null; acceptedOffers: BackhaulOffer[]; onRestart: () => void }) {
   const totalNet = (selectedCandidate?.net ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.net, 0)
   const totalCalls = (selectedCandidate ? 1 : 0) + acceptedOffers.length
-  const totalEmptyKm = (selectedCandidate?.emptyKm ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.emptyKm, 0)
+  const reducedEmptyKm = acceptedOffers.reduce(
+    (sum, offer) => sum + Math.max(0, offer.expectedEmptyKmWithoutBackhaul - offer.emptyKm),
+    0,
+  )
   return (
     <div className="carrier-scroll carrier-simple-screen">
       <div className="simple-screen-heading">
@@ -412,7 +415,12 @@ function TripSummaryScreen({ selectedCandidate, acceptedOffers, onRestart }: { s
         <p>총 {totalCalls}건의 콜을 완료했습니다.</p>
       </section>
       <div className="carrier-quick-grid">
-        <article><Icon name="route" /><strong>{totalEmptyKm}km</strong><span>총 공차 이동</span></article>
+        <article title="복화 미연결 예상 공차거리에서 실제 복화 상차지까지의 공차거리를 뺀 값">
+          <Icon name="route" />
+          <strong>{reducedEmptyKm}km</strong>
+          <span>복화로 줄인 공차</span>
+          <small>미연결 예상 대비</small>
+        </article>
         <article><Icon name="leaf" /><strong>{acceptedOffers.length}건</strong><span>복화 연결</span></article>
       </div>
       <button className="button button--primary carrier-wide-button" onClick={onRestart} type="button">처음으로</button>

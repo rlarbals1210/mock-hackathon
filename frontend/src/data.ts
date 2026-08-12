@@ -102,14 +102,15 @@ export type BackhaulOffer = {
   route: string
   time: string
   emptyKm: number
+  expectedEmptyKmWithoutBackhaul: number
   fare: number
   net: number
   tags: string[]
 }
 
 export const backhaulOffers: BackhaulOffer[] = [
-  { id: 1, route: '서울 → 대전', time: '18:40', emptyKm: 6, fare: 31, net: 26.4, tags: ['복화 연결', '귀가 방향'] },
-  { id: 2, route: '대전 → 부산', time: '21:10', emptyKm: 4, fare: 29, net: 24.1, tags: ['복화 연결', '오늘 귀가 가능'] },
+  { id: 1, route: '서울 → 대전', time: '18:40', emptyKm: 6, expectedEmptyKmWithoutBackhaul: 160, fare: 31, net: 26.4, tags: ['복화 연결', '귀가 방향'] },
+  { id: 2, route: '대전 → 부산', time: '21:10', emptyKm: 4, expectedEmptyKmWithoutBackhaul: 200, fare: 29, net: 24.1, tags: ['복화 연결', '오늘 귀가 가능'] },
 ]
 
 // ai/generate_data.py의 make_carriers() 표집 확률(국토부 영업용 화물차 등록통계 기반)에서
