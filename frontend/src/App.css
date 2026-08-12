@@ -3686,7 +3686,8 @@
 }
 
 .workspace-v3-grid:has(.monthly-report),
-.workspace-v3-grid:has(.profile-screen-v3) {
+.workspace-v3-grid:has(.profile-screen-v3),
+.workspace-v3-grid--single {
   grid-template-columns: 1fr;
 }
 
@@ -3978,7 +3979,6 @@
 }
 
 .static-summary-rail h2 {
-  margin-top: 5px;
   font-size: 18px;
 }
 
@@ -4045,40 +4045,6 @@
 .static-summary-rail li small {
   color: #8a8a8a;
   font-size: 10px;
-}
-
-.summary-carbon {
-  display: flex;
-  gap: 10px;
-  padding: 16px 20px;
-  color: var(--green);
-  background: #eef8f4;
-  border-top: 1px solid #dcece6;
-  border-bottom: 1px solid #dcece6;
-}
-
-.summary-carbon span {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.summary-carbon small,
-.summary-carbon em {
-  color: #4e796c;
-  font-size: 9px;
-  font-style: normal;
-}
-
-.summary-carbon strong {
-  font-size: 14px;
-}
-
-.static-summary-rail > p {
-  padding: 14px 20px 18px;
-  color: #999;
-  font-size: 9px;
-  line-height: 1.5;
 }
 
 /* cargo registration */
@@ -4528,7 +4494,7 @@
 /* comparison */
 .comparison-kpis {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   overflow: hidden;
 }
 
@@ -4840,10 +4806,8 @@
 }
 
 .comparison-footer {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 10px 20px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .calculation-note {
@@ -5974,13 +5938,12 @@
   .static-summary-rail {
     position: static;
     display: grid;
-    grid-template-columns: 180px 1fr 230px;
+    grid-template-columns: 180px 1fr;
     align-items: stretch;
   }
 
   .static-summary-rail > header,
-  .static-summary-rail ol,
-  .summary-carbon {
+  .static-summary-rail ol {
     border-right: 1px solid #ededed;
     border-bottom: 0;
   }
@@ -5994,13 +5957,8 @@
     min-height: 82px;
   }
 
-  .static-summary-rail li + li::before,
-  .static-summary-rail > p {
+  .static-summary-rail li + li::before {
     display: none;
-  }
-
-  .summary-carbon {
-    align-items: center;
   }
 }
 
@@ -6018,16 +5976,15 @@
   }
 
   .comparison-kpis {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
-  .comparison-kpis > div:nth-child(4) {
+  .comparison-kpis > div:nth-child(3) {
     border-left: 0;
     border-top: 1px solid #e5e5e5;
   }
 
-  .comparison-kpis > div:nth-child(5),
-  .comparison-kpis > div:nth-child(6) {
+  .comparison-kpis > div:nth-child(4) {
     border-top: 1px solid #e5e5e5;
   }
 
@@ -6187,8 +6144,7 @@
   }
 
   .static-summary-rail > header,
-  .static-summary-rail ol,
-  .summary-carbon {
+  .static-summary-rail ol {
     border-right: 0;
     border-bottom: 1px solid #ededed;
   }

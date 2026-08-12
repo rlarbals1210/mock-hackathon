@@ -160,7 +160,7 @@ export function CargoRegistration({ cargo, onChange, onContinue, onOpenPreferenc
   return (
     <div className="flow-screen cargo-registration">
       <header className="flow-heading">
-        <div><span className="eyebrow">SHIPPER CALL SETUP</span><h1>화물 정보 등록</h1><p>운송 기본 정보를 선택하면 등록 예정 노선이 한 칸씩 채워집니다.</p></div>
+        <div><h1>화물 정보 등록</h1><p>운송 기본 정보를 선택하면 등록 예정 노선이 한 칸씩 채워집니다.</p></div>
         <div className="flow-heading__progress"><span>콜 정보 진행률</span><strong>{completed}/6</strong><div><i style={{ width: `${(completed / 6) * 100}%` }} /></div></div>
       </header>
 
@@ -184,14 +184,9 @@ export function CargoRegistration({ cargo, onChange, onContinue, onOpenPreferenc
       </section>
 
       <section className="route-preview panel-v3">
-        <div className="route-preview__title"><span>7</span><div><h2>등록 예정 노선</h2><p>선택한 항목만 조건 비교 모델에 전달합니다.</p></div></div>
+        <div className="route-preview__title"><span>7</span><div><h2>등록 예정 노선</h2><p>조건 비교 전 입력 내용을 확인하세요.</p></div></div>
         <dl>{summary.map(([label, value]) => <div className={value && value !== '미선택' ? 'is-filled' : ''} key={label}><dt>{label}</dt><dd>{value || '미선택'}</dd>{value && value !== '미선택' && <Icon name="check" size={15} />}</div>)}</dl>
       </section>
-
-      <aside className="source-disclosure">
-        <Icon name="info" size={18} />
-        <div><strong>이 콜은 다음 자료를 참조합니다.</strong><span>기획자료의 3시간·48시간 조건 끝점 · 탄소 보고서 12,000건 가상 오더와 국내계수 · Gemini Flash 자료 해석</span></div>
-      </aside>
 
       {!preferencesReady && <div className="requirement-banner"><Icon name="shield" size={20} /><p><strong>필수 설정이 아직 완료되지 않았습니다.</strong><span>각 질문에서 하나 이상 선택해야 조건 비교를 시작할 수 있어요.</span></p><button onClick={onOpenPreferences} type="button">필수 설정 열기</button></div>}
       <div className="screen-actions"><button className="primary-v3" disabled={!ready} onClick={onContinue} type="button">조건 비교 보기 <Icon name="chevron" size={18} /></button></div>
