@@ -14,9 +14,8 @@
 ### backend
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+uv sync
+uv run uvicorn app.main:app --reload
 ```
 
 ### frontend
@@ -29,7 +28,6 @@ npm run dev
 ### ai
 ```bash
 cd ai
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python src/main.py
+uv sync
+uv run python src/main.py
 ```
