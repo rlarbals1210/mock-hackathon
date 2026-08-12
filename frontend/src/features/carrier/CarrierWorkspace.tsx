@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CustomOverlayMap, Map, MapMarker, Polyline, useKakaoLoader } from 'react-kakao-maps-sdk'
 import { Icon } from '../../components/Icon'
-import { backhaulOffers, candidates, cityCoords, orders, type BackhaulOffer, type Candidate } from '../../data'
+import { backhaulOffers, candidates, cityCoords, orders, virtualCarrierProfile, type BackhaulOffer, type Candidate } from '../../data'
 import { carrierStageLabels, type CarrierStage, type NotificationKind } from './flow'
 
 function routeEndpoints(route: string) {
@@ -21,7 +21,7 @@ function LoginScreen({ onNext }: { onNext: () => void }) {
   )
 }
 
-function PreferenceChipGroup({ label, options, selected, onSelect }: { label: string; options: string[]; selected: string; onSelect: (value: string) => void }) {
+function PreferenceChipGroup({ label, options, selected, onSelect }: { label: string; options: string[]; selected: string | null; onSelect: (value: string) => void }) {
   return (
     <section className="preference-list">
       <h3>{label}</h3>
@@ -42,36 +42,143 @@ function PreferenceChipGroup({ label, options, selected, onSelect }: { label: st
   )
 }
 
-export type CarrierPreferences = { route: string; time: string; day: string }
+function PreferenceMultiChipGroup({ label, options, selected, onToggle }: { label: string; options: { value: string; sub?: string }[]; selected: string[]; onToggle: (value: string) => void }) {
+  return (
+    <section className="preference-list">
+      <h3>{label}</h3>
+      <div className="carrier-chip-row">
+        {options.map((option) => (
+          <button
+            aria-pressed={selected.includes(option.value)}
+            className={`carrier-chip${selected.includes(option.value) ? ' is-selected' : ''}`}
+            key={option.value}
+            onClick={() => onToggle(option.value)}
+            type="button"
+          >
+            {option.value}
+            {option.sub && <small className="carrier-chip-sub">{option.sub}</small>}
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
 
-const routeOptions = ['부산 ↔ 수도권', '대구 ↔ 인천', '광주 ↔ 대전']
-const timeOptions = ['오전 상차', '오후 상차', '야간 상차']
-const dayOptions = ['금요일 부산', '일요일 부산', '상관없음']
+export type CarrierPreferences = { region: string; subRegion: string; time: string[]; priorities: string[] }
 
-function preferredOriginCity(route: string) {
-  return route.split(' ↔ ')[0]
+// ai/generate_data.py의 REGIONS(권역)와 실제 행정구역 하위 지역을 매핑
+const regionOptions = ['영남', '수도권', '충청', '호남', '강원제주']
+const subRegionsByRegion: Record<string, string[]> = {
+  영남: ['부산', '대구', '울산', '경남', '경북'],
+  수도권: ['서울', '경기', '인천'],
+  충청: ['대전', '세종', '충남', '충북'],
+  호남: ['광주', '전남', '전북'],
+  강원제주: ['강원', '제주'],
+}
+const timeOptions: { value: string; sub?: string }[] = [
+  { value: '오전 상차', sub: '06:00~12:00' },
+  { value: '오후 상차', sub: '12:00~18:00' },
+  { value: '야간 상차', sub: '18:00~24:00' },
+  { value: '상관없음' },
+]
+const priorityOptions: { value: string }[] = [
+  { value: '많은 수익' },
+  { value: '공차 30km 이내' },
+  { value: '8시간 이내의 거리' },
+  { value: '복화 가능성' },
+]
+
+function toggleTimeSelection(current: string[], value: string) {
+  if (value === '상관없음') return current.includes('상관없음') ? [] : ['상관없음']
+  const withoutExclusive = current.filter((entry) => entry !== '상관없음')
+  return withoutExclusive.includes(value)
+    ? withoutExclusive.filter((entry) => entry !== value)
+    : [...withoutExclusive, value]
+}
+
+function toggleInList(current: string[], value: string) {
+  return current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value]
+}
+
+function BaseProfileScreen({ onNext }: { onNext: () => void }) {
+  return (
+    <div className="carrier-scroll carrier-simple-screen">
+      <div className="simple-screen-heading">
+        <span className="icon-box icon-box--yellow"><Icon name="truck" /></span>
+        <div><h2>내 기본 조건</h2><p>가입 시 등록된 차량 정보예요.</p></div>
+      </div>
+      <div className="profile-header-card">
+        <span className="avatar avatar--large">{virtualCarrierProfile.name[0]}</span>
+        <div><h2>{virtualCarrierProfile.name} 운송인</h2><p>{virtualCarrierProfile.vehicleType}</p></div>
+      </div>
+      <section className="preference-list">
+        <h3>차량 정보</h3>
+        <div><span>톤급</span><strong>{virtualCarrierProfile.tonnage}톤</strong></div>
+        <div><span>적재 형태</span><strong>{virtualCarrierProfile.form}</strong></div>
+        <div><span>기반 지역</span><strong>{virtualCarrierProfile.baseRegion}</strong></div>
+      </section>
+      <button className="button button--primary carrier-wide-button" onClick={onNext} type="button">확인했어요</button>
+    </div>
+  )
 }
 
 function PreferenceSetupScreen({ onNext }: { onNext: (preferences: CarrierPreferences) => void }) {
-  const [route, setRoute] = useState(routeOptions[0])
-  const [time, setTime] = useState(timeOptions[1])
-  const [day, setDay] = useState(dayOptions[0])
+  const [region, setRegion] = useState<string | null>(null)
+  const [subRegion, setSubRegion] = useState<string | null>(null)
+  const [time, setTime] = useState<string[]>([])
+  const [priorities, setPriorities] = useState<string[]>([])
+
+  const subRegionOptions = region ? subRegionsByRegion[region] : []
+  const canProceed = Boolean(region && subRegion && time.length > 0 && priorities.length > 0)
+
   return (
     <div className="carrier-scroll carrier-simple-screen">
       <div className="simple-screen-heading">
         <span className="icon-box icon-box--yellow"><Icon name="shield" /></span>
         <div><h2>선호 조건 설정</h2><p>운행 전에 선호 조건을 알려주시면 더 정확한 콜을 추천해 드려요.</p></div>
       </div>
-      <PreferenceChipGroup label="주요 노선" onSelect={setRoute} options={routeOptions} selected={route} />
-      <PreferenceChipGroup label="선호 시간" onSelect={setTime} options={timeOptions} selected={time} />
-      <PreferenceChipGroup label="귀가 희망" onSelect={setDay} options={dayOptions} selected={day} />
-      <button className="button button--primary carrier-wide-button" onClick={() => onNext({ route, time, day })} type="button">저장하고 시작하기</button>
+      <PreferenceChipGroup
+        label="선호 지역"
+        onSelect={(value) => {
+          setRegion(value)
+          setSubRegion(null)
+        }}
+        options={regionOptions}
+        selected={region}
+      />
+      {region && (
+        <PreferenceChipGroup label={`${region} 세부 지역`} onSelect={setSubRegion} options={subRegionOptions} selected={subRegion} />
+      )}
+      <PreferenceMultiChipGroup
+        label="선호 시간 (복수 선택 가능)"
+        onToggle={(value) => setTime((current) => toggleTimeSelection(current, value))}
+        options={timeOptions}
+        selected={time}
+      />
+      <PreferenceMultiChipGroup
+        label="운행조건에서 중요해요"
+        onToggle={(value) => setPriorities((current) => toggleInList(current, value))}
+        options={priorityOptions}
+        selected={priorities}
+      />
+      <button
+        className="button button--primary carrier-wide-button"
+        disabled={!canProceed}
+        onClick={() => {
+          if (!region || !subRegion) return
+          onNext({ region, subRegion, time, priorities })
+        }}
+        type="button"
+      >
+        저장하고 시작하기
+      </button>
+      {!canProceed && <p className="carrier-choice-note"><Icon name="info" size={17} /> 모든 항목을 하나 이상 선택해주세요</p>}
     </div>
   )
 }
 
 function OrderBoardScreen({ scanning, preferences }: { scanning: boolean; preferences: CarrierPreferences | null }) {
-  const preferredOrigin = preferences ? preferredOriginCity(preferences.route) : null
+  const preferredOrigin = preferences?.subRegion ?? null
   return (
     <div className="carrier-scroll carrier-home">
       <div className="simple-screen-heading">
@@ -93,7 +200,7 @@ function OrderBoardScreen({ scanning, preferences }: { scanning: boolean; prefer
                 <b>{order.price}만원</b>
               </div>
               <small>{order.cargo} · {order.weight} · {order.loadTime} · {order.distance}km</small>
-              {matchesPreference && <span className="candidate-tags"><em>선호 노선</em></span>}
+              {matchesPreference && <span className="candidate-tags"><em>선호 지역</em></span>}
             </article>
           )
         })}
@@ -327,7 +434,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
         <span className="mono-label">TODAY'S ROUTE</span>
         <h2>운송인 흐름</h2>
         <div className="stage-list">
-          {(['login', 'preferences', 'home', 'candidates', 'route-map', 'backhaul-decision', 'summary'] as CarrierStage[]).map((s) => (
+          {(['login', 'base-profile', 'preferences', 'home', 'candidates', 'route-map', 'backhaul-decision', 'summary'] as CarrierStage[]).map((s) => (
             <div className={s === stage ? 'is-active' : ''} key={s}>
               <span><Icon name="truck" size={16} /></span>
               <p><strong>{carrierStageLabels[s]}</strong></p>
@@ -351,7 +458,8 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
           </div>
         </header>
         <div className="carrier-content">
-          {stage === 'login' && <LoginScreen onNext={() => setStage('preferences')} />}
+          {stage === 'login' && <LoginScreen onNext={() => setStage('base-profile')} />}
+          {stage === 'base-profile' && <BaseProfileScreen onNext={() => setStage('preferences')} />}
           {stage === 'preferences' && (
             <PreferenceSetupScreen
               onNext={(prefs) => {

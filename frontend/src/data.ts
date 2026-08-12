@@ -111,3 +111,13 @@ export const backhaulOffers: BackhaulOffer[] = [
   { id: 1, route: '서울 → 대전', time: '18:40', emptyKm: 6, fare: 31, net: 26.4, tags: ['복화 연결', '귀가 방향'] },
   { id: 2, route: '대전 → 부산', time: '21:10', emptyKm: 4, fare: 29, net: 24.1, tags: ['복화 연결', '오늘 귀가 가능'] },
 ]
+
+// ai/generate_data.py의 make_carriers() 표집 확률(국토부 영업용 화물차 등록통계 기반)에서
+// 톤급은 5톤(50%), 적재형태는 카고(33.5%), 차고지는 수도권(33%)이 각각 최빈값이다.
+export const virtualCarrierProfile = {
+  name: '김무빈',
+  tonnage: 5,
+  form: '카고',
+  vehicleType: '5톤 카고',
+  baseRegion: '수도권',
+}
