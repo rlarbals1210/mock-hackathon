@@ -5,6 +5,7 @@ import { ConditionComparison } from './ConditionComparison'
 import { InformationScreen } from './InformationScreen'
 import { MonthlyReport } from './MonthlyReport'
 import { ProfileScreen } from './ProfileScreen'
+import { useCatalogOptions } from './useCatalogOptions'
 import {
   cargoIsComplete,
   createOperation,
@@ -139,6 +140,8 @@ function CurrentDispatchInfo({ cargo, preferencesReady, choice }: { cargo: Cargo
 }
 
 export function ShipperScreen({ section, onNavigate }: { section: ShipperSection; onNavigate: (section: ShipperSection) => void }) {
+  // 선택지와 매칭 결과가 같은 카탈로그를 쓰도록 최상위에서 한 번만 불러옵니다.
+  const catalog = useCatalogOptions()
   const [preferences, setPreferences] = useState<PreferenceState>(() => ({ result: [], schedule: [], carrier: [] }))
   const [saved, setSaved] = useState(false)
   const [cargo, setCargo] = useState<CargoForm>(() => ({ ...emptyCargo }))
@@ -202,9 +205,9 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
   const content = section === 'preferences'
     ? <PreferenceSettings onChange={updatePreference} onSave={savePreferences} preferences={preferences} saved={saved} />
     : section === 'register'
-      ? <CargoRegistration cargo={cargo} onChange={(nextCargo) => { setCargo(nextCargo); setChoice(null) }} onContinue={continueToComparison} onOpenPreferences={() => onNavigate('preferences')} preferencesReady={preferencesReady} />
+      ? <CargoRegistration cargo={cargo} catalog={catalog} onChange={(nextCargo) => { setCargo(nextCargo); setChoice(null) }} onContinue={continueToComparison} onOpenPreferences={() => onNavigate('preferences')} preferencesReady={preferencesReady} />
       : section === 'compare'
-        ? <ConditionComparison cargo={cargo} choice={choice} onChoose={chooseCondition} onOpenRegistration={() => onNavigate('register')} />
+        ? <ConditionComparison cargo={cargo} catalog={catalog.data} choice={choice} onChoose={chooseCondition} onOpenRegistration={() => onNavigate('register')} />
         : section === 'report'
           ? <MonthlyReport cargo={cargo} choice={choice} levers={levers} operations={operations} />
           : section === 'information'

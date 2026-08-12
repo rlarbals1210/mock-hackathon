@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../../components/Icon'
+import { comparisonWindowMinutes, pickScenario, scenarioToPrediction } from '../../lib/adapters'
+import type { CatalogOptionsResponse } from '../../lib/types'
+import { useShipperMatch } from './useShipperMatch'
 import {
   cargoIsComplete,
   describeLevers,
@@ -27,6 +30,25 @@ type ConditionComparisonProps = {
   choice: DecisionChoice
   onChoose: (choice: Exclude<DecisionChoice, null>, levers: LeverState) => void
   onOpenRegistration: () => void
+  catalog: CatalogOptionsResponse | null
+}
+
+/** 예측 출처를 화면 상단에 알립니다. 예측 서버 값과 로컬 참고값을 섞어 보여주지 않기 위해서입니다. */
+function PredictionSourceNotice({ state }: { state: { kind: 'server' | 'local' | 'loading'; message: string } }) {
+  if (state.kind === 'server') {
+    return (
+      <section className="interpretation-box is-source">
+        <Icon name="info" size={22} />
+        <div><h2>예상 결과 안내</h2><p>{state.message}</p></div>
+      </section>
+    )
+  }
+  return (
+    <section className="interpretation-box">
+      <Icon name={state.kind === 'loading' ? 'clock' : 'shield'} size={22} />
+      <div><h2>{state.kind === 'loading' ? '예측 서버 응답을 기다리는 중' : '참고값으로 표시 중'}</h2><p>{state.message}</p></div>
+    </section>
+  )
 }
 
 function PredictionFacts({ prediction }: { prediction: Prediction }) {
@@ -45,7 +67,7 @@ function Delta({ value, label }: { value: string; label: string }) {
   return <span className="comparison-delta"><small>{label}</small><strong>{value}</strong><Icon name="chevron" size={16} /></span>
 }
 
-export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistration }: ConditionComparisonProps) {
+export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistration, catalog }: ConditionComparisonProps) {
   const currentHours = getWindowHours(cargo.startMinutes, cargo.endMinutes)
   const leadHours = getLeadHours(cargo) ?? 24
   const initialWindow = Math.min(48, Math.max(12, Math.ceil((currentHours ?? 3) + 9)))
@@ -61,8 +83,58 @@ export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistratio
     () => ({ ...emptyLevers, windowHours: currentHours ?? 3, timeChangeCostPerHour: levers.timeChangeCostPerHour }),
     [currentHours, levers.timeChangeCostPerHour],
   )
-  const currentPrediction = useMemo(() => predictWithLevers(leadHours, currentLevers), [currentLevers, leadHours])
-  const adjustedPrediction = useMemo(() => predictWithLevers(leadHours, levers), [leadHours, levers])
+
+  // 완화 조건을 적용하면 응답의 current까지 함께 바뀌므로, 비교 기준은 레버를 끈 상태로 따로 요청합니다.
+  const baselineLevers = useMemo<LeverState>(() => ({ ...emptyLevers, windowHours: currentHours ?? 3 }), [currentHours])
+  const baselineMatch = useShipperMatch(cargo, baselineLevers, catalog, complete)
+  const adjustedMatch = useShipperMatch(cargo, levers, catalog, complete)
+
+  const baselineScenario = baselineMatch.status === 'ready' ? baselineMatch.data?.current ?? null : null
+  const scenarios = useMemo(
+    () => (adjustedMatch.status === 'ready' ? adjustedMatch.data?.timeWindowScenarios ?? [] : []),
+    [adjustedMatch.data, adjustedMatch.status],
+  )
+  const usingServer = baselineScenario !== null && scenarios.length > 0
+
+  // 슬라이더는 서버가 실제로 평가한 시간창 위에서만 움직입니다.
+  // 서버 값을 못 쓰는 동안에는 같은 사다리를 로컬 계산에 씁니다.
+  const windowChoices = useMemo(() => {
+    const minimumMinutes = Math.round((currentHours ?? 3) * 60)
+    const source = usingServer ? scenarios.map((scenario) => scenario.loadingWindowMinutes) : comparisonWindowMinutes
+    const values = [...new Set(source)].filter((minutes) => minutes >= minimumMinutes).sort((left, right) => left - right)
+    return (values.length ? values : [minimumMinutes]).map((minutes) => Math.round((minutes / 60) * 10) / 10
+    )
+  }, [currentHours, scenarios, usingServer])
+
+  const selectedWindowIndex = useMemo(() => {
+    let closest = 0
+    for (let index = 1; index < windowChoices.length; index += 1) {
+      if (Math.abs(windowChoices[index] - levers.windowHours) < Math.abs(windowChoices[closest] - levers.windowHours)) closest = index
+    }
+    return closest
+  }, [levers.windowHours, windowChoices])
+
+  const adjustedScenario = usingServer ? pickScenario(scenarios, levers.windowHours) : null
+  const currentPrediction = useMemo(
+    () => (baselineScenario ? scenarioToPrediction(baselineScenario) : predictWithLevers(leadHours, currentLevers)),
+    [baselineScenario, currentLevers, leadHours],
+  )
+  const adjustedPrediction = useMemo(
+    () => (adjustedScenario ? scenarioToPrediction(adjustedScenario) : predictWithLevers(leadHours, levers)),
+    [adjustedScenario, leadHours, levers],
+  )
+
+  const loading = baselineMatch.status === 'loading' || adjustedMatch.status === 'loading'
+  const blocked = adjustedMatch.status === 'unavailable' ? adjustedMatch : baselineMatch.status === 'unavailable' ? baselineMatch : null
+  const failed = adjustedMatch.status === 'error' ? adjustedMatch : baselineMatch.status === 'error' ? baselineMatch : null
+  const sourceState = usingServer
+    ? { kind: 'server' as const, message: '예상 수치는 v13 생성 데이터와 학습 모델이 계산한 값이며 실제 배차 과정에서 달라질 수 있습니다.' }
+    : loading
+      ? { kind: 'loading' as const, message: '조건에 맞는 후보와 예상 운임을 계산하고 있습니다.' }
+      : blocked
+        ? { kind: 'local' as const, message: `${blocked.message} 아래 수치는 원자료 기반 참고값입니다.` }
+        : { kind: 'local' as const, message: `${failed?.message ?? '예측 서버에 연결하지 못했습니다.'} 아래 수치는 원자료 기반 참고값입니다.` }
+
   const driverDelta = adjustedPrediction.candidates - currentPrediction.candidates
   const fareDelta = adjustedPrediction.fare - currentPrediction.fare
   const dispatchDelta = adjustedPrediction.dispatchMinutes - currentPrediction.dispatchMinutes
@@ -95,10 +167,12 @@ export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistratio
         <div><span>유찰 위험</span><strong>{formatRisk(adjustedPrediction.failureProbability)}</strong></div>
       </section>
 
-      <section className="interpretation-box is-source">
-        <Icon name="info" size={22} />
-        <div><h2>예상 결과 안내</h2><p>예상 수치는 입력한 조건을 기준으로 계산되며 실제 배차 과정에서 달라질 수 있습니다.</p></div>
-      </section>
+      <PredictionSourceNotice state={sourceState} />
+      {failed && !usingServer && (
+        <div className="screen-actions">
+          <button onClick={() => { baselineMatch.retry(); adjustedMatch.retry() }} type="button">예측 서버 다시 시도</button>
+        </div>
+      )}
 
       <section className="comparison-pair">
         <article className={`comparison-card ${choice === 'current' ? 'is-chosen' : ''}`}>
@@ -120,8 +194,22 @@ export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistratio
       </section>
 
       <section className="window-adjuster panel-v3">
-        <div className="window-adjuster__head"><div><h2>상차 시간 조정</h2><p>가능한 상차 시간을 넓혀 배차 결과 변화를 확인하세요.</p></div><strong>{levers.windowHours}시간</strong></div>
-        <div className="window-adjuster__range"><span>3시간<small>최소</small></span><input aria-label="완화 상차 시간창" max="48" min={Math.max(3, Math.ceil(currentHours ?? 3))} onChange={(event) => setLevers({ ...levers, windowHours: Number(event.target.value) })} type="range" value={levers.windowHours} /><span>48시간<small>최대</small></span></div>
+        <div className="window-adjuster__head"><div><h2>상차 시간 조정</h2><p>{usingServer ? '예측 서버가 한 번에 계산한 시간창 중에서 고릅니다.' : '가능한 상차 시간을 넓혀 배차 결과 변화를 확인하세요.'}</p></div><strong>{levers.windowHours}시간</strong></div>
+        <div className="window-adjuster__range">
+          <span>{windowChoices[0]}시간<small>최소</small></span>
+          <input
+            aria-label="완화 상차 시간창"
+            aria-valuetext={`${levers.windowHours}시간`}
+            disabled={windowChoices.length < 2}
+            max={windowChoices.length - 1}
+            min={0}
+            onChange={(event) => setLevers({ ...levers, windowHours: windowChoices[Number(event.target.value)] })}
+            step={1}
+            type="range"
+            value={selectedWindowIndex}
+          />
+          <span>{windowChoices[windowChoices.length - 1]}시간<small>최대</small></span>
+        </div>
       </section>
 
       <section className="lever-row">
@@ -131,9 +219,13 @@ export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistratio
             <button aria-checked={levers.vehicleFlexible} aria-label="차종 대체 허용" className="lever-switch" onClick={() => setLevers({ ...levers, vehicleFlexible: !levers.vehicleFlexible })} role="switch" type="button"><i /></button>
           </header>
           <p className="lever-effect">
-            {levers.vehicleFlexible
-              ? `후보 ${vehicleFlexCandidateMultiplier}배 · 배차 30% 단축 · 운임 3% 하락을 반영했습니다.`
-              : `켜면 후보가 ${vehicleFlexCandidateMultiplier}배로 늘고 배차시간이 30% 짧아집니다. 원자료 12,000건에서 단일 지정 64명 → 대체허용 230명.`}
+            {usingServer
+              ? levers.vehicleFlexible
+                ? `대체 허용 조건으로 다시 계산해 후보가 ${currentPrediction.candidates.toLocaleString('ko-KR')}명에서 ${adjustedPrediction.candidates.toLocaleString('ko-KR')}명이 되었습니다.`
+                : '켜면 상위 톤급·유사 적재형태를 포함해 예측 서버가 후보를 다시 계산합니다.'
+              : levers.vehicleFlexible
+                ? `후보 ${vehicleFlexCandidateMultiplier}배 · 배차 30% 단축 · 운임 3% 하락을 반영했습니다.`
+                : `켜면 후보가 ${vehicleFlexCandidateMultiplier}배로 늘고 배차시간이 30% 짧아집니다. 원자료 12,000건에서 단일 지정 64명 → 대체허용 230명.`}
           </p>
         </article>
 

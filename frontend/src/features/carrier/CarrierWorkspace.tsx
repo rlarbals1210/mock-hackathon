@@ -70,12 +70,6 @@ function PreferenceMultiChipGroup({ label, options, selected, onToggle }: { labe
 
 export type CarrierPreferences = { region: string; subRegion: string; time: string[]; priorities: string[] }
 
-function formatClockTime(date: Date) {
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${hours}:${minutes}`
-}
-
 // ai/generate_data.py의 REGIONS(권역)와 실제 행정구역 하위 지역을 매핑
 const regionOptions = ['영남', '수도권', '충청', '호남', '강원제주']
 const subRegionsByRegion: Record<string, string[]> = {
@@ -494,15 +488,6 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
   const [activeRoute, setActiveRoute] = useState('')
   const [preferences, setPreferences] = useState<CarrierPreferences | null>(null)
   const [progress, setProgress] = useState(0)
-  const [currentTime, setCurrentTime] = useState(() => formatClockTime(new Date()))
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setCurrentTime(formatClockTime(new Date()))
-    }, 1000)
-
-    return () => window.clearInterval(interval)
-  }, [])
 
   useEffect(() => {
     if (stage !== 'home' || notification) return
@@ -568,11 +553,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
         </button>
         <div className="carrier-phone">
           <div aria-hidden="true" className="carrier-system-bar">
-<<<<<<< Updated upstream
             <time dateTime={statusBarTime.dateTime}>{statusBarTime.label}</time>
-=======
-            <time dateTime={currentTime}>{currentTime}</time>
->>>>>>> Stashed changes
             <span className="carrier-dynamic-island" />
             <img alt="" className="carrier-system-icons" src="/ios-status-icons.svg" />
           </div>

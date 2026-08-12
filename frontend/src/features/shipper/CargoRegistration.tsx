@@ -13,6 +13,7 @@ import {
   type CargoForm,
   vehicleOptions,
 } from './shipperModel'
+import { useDestinationChoices, useOriginChoices, type CatalogState, type LocationChoices } from './useCatalogOptions'
 
 type CargoRegistrationProps = {
   cargo: CargoForm
@@ -20,7 +21,11 @@ type CargoRegistrationProps = {
   onContinue: () => void
   onOpenPreferences: () => void
   preferencesReady: boolean
+  catalog: CatalogState
 }
+
+// 카탈로그를 못 받았을 때만 쓰는 기존 하드코딩 선택지입니다.
+const fallbackChoices: LocationChoices = { regions: regionOptions.filter((region) => region !== '기타'), byRegion: regionLocations }
 
 function CalendarPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const today = useMemo(() => new Date(), [])
@@ -86,31 +91,34 @@ function LocationPicker({
   step,
   region,
   value,
+  choices,
+  hint,
   onChange,
 }: {
   title: string
   step: number
   region: string
   value: string
+  choices: LocationChoices
+  hint?: string
   onChange: (region: string, value: string) => void
 }) {
+  const locations = choices.byRegion[region] ?? []
   return (
     <section className="cargo-field cargo-field--location">
       <div className="cargo-field__title"><span>{step}</span><h2>{title}</h2>{value && <em><Icon name="check" size={14} /> 선택 완료</em>}</div>
+      {hint && <p className="cargo-field__hint">{hint}</p>}
       <div className="region-options">
-        {regionOptions.map((option) => (
+        {choices.regions.map((option) => (
           <button aria-pressed={region === option} className={region === option ? 'is-selected' : ''} key={option} onClick={() => onChange(option, '')} type="button">{option}</button>
         ))}
       </div>
-      {region && region !== '기타' && (
+      {region && locations.length > 0 && (
         <div className="detail-options" aria-label={`${title} 세부 위치`}>
-          {regionLocations[region].map((location) => (
+          {locations.map((location) => (
             <button aria-pressed={value === location} className={value === location ? 'is-selected' : ''} key={location} onClick={() => onChange(region, location)} type="button">{location}</button>
           ))}
         </div>
-      )}
-      {region === '기타' && (
-        <label className="other-input"><span>{title} 직접 입력</span><input onChange={(event) => onChange('기타', event.target.value)} placeholder="예: 경기 시흥 정왕동" value={value} /></label>
       )}
     </section>
   )
@@ -147,7 +155,15 @@ function ChoiceSection({
   )
 }
 
-export function CargoRegistration({ cargo, onChange, onContinue, onOpenPreferences, preferencesReady }: CargoRegistrationProps) {
+export function CargoRegistration({ cargo, onChange, onContinue, onOpenPreferences, preferencesReady, catalog }: CargoRegistrationProps) {
+  const routes = catalog.data?.routes
+  const catalogOrigins = useOriginChoices(routes)
+  const catalogDestinations = useDestinationChoices(routes, cargo.origin)
+  const usingCatalog = Boolean(routes?.length)
+  const originChoices = usingCatalog ? catalogOrigins : fallbackChoices
+  const destinationChoices = usingCatalog ? catalogDestinations : fallbackChoices
+  const vehicleChoices = catalog.data?.vehicleTypes.length ? catalog.data.vehicleTypes.map((option) => option.label) : vehicleOptions
+  const itemChoices = catalog.data?.items.length ? catalog.data.items.map((option) => option.label) : itemOptions
   const cargoWeightKg = getCargoWeightKg(cargo.cargoWeight)
   const cargoDescriptionComplete = Boolean(cargo.cargoDescription.trim())
   const cargoWeightComplete = cargoWeightKg !== null
@@ -172,13 +188,36 @@ export function CargoRegistration({ cargo, onChange, onContinue, onOpenPreferenc
         <div className="flow-heading__progress"><span>콜 정보 진행률</span><strong>{completed}/8</strong><div><i style={{ width: `${(completed / 8) * 100}%` }} /></div></div>
       </header>
 
+      {catalog.status === 'error' && (
+        <div className="requirement-banner">
+          <Icon name="shield" size={20} />
+          <p><strong>선택지를 예측 서버에서 불러오지 못했습니다.</strong><span>{catalog.message} 기본 목록으로 진행하면 예상 수치가 참고값으로 표시됩니다.</span></p>
+          <button onClick={catalog.reload} type="button">다시 시도</button>
+        </div>
+      )}
+
       <div className="cargo-locations panel-v3">
-        <LocationPicker onChange={(originRegion, origin) => onChange({ ...cargo, originRegion, origin })} region={cargo.originRegion} step={1} title="출발지" value={cargo.origin} />
-        <LocationPicker onChange={(destinationRegion, destination) => onChange({ ...cargo, destinationRegion, destination })} region={cargo.destinationRegion} step={2} title="도착지" value={cargo.destination} />
+        <LocationPicker
+          choices={originChoices}
+          onChange={(originRegion, origin) => onChange({ ...cargo, originRegion, origin, destinationRegion: '', destination: '' })}
+          region={cargo.originRegion}
+          step={1}
+          title="출발지"
+          value={cargo.origin}
+        />
+        <LocationPicker
+          choices={destinationChoices}
+          hint={usingCatalog && cargo.origin ? `${cargo.origin}에서 실제 운송 이력이 있는 도착지만 표시합니다.` : undefined}
+          onChange={(destinationRegion, destination) => onChange({ ...cargo, destinationRegion, destination })}
+          region={cargo.destinationRegion}
+          step={2}
+          title="도착지"
+          value={cargo.destination}
+        />
       </div>
 
-      <ChoiceSection onChange={(vehicle) => onChange({ ...cargo, vehicle })} options={vehicleOptions} step={3} title="차량 선택" value={cargo.vehicle} />
-      <ChoiceSection onChange={(item) => onChange({ ...cargo, item })} options={itemOptions} step={4} title="품목 선택" value={cargo.item} />
+      <ChoiceSection onChange={(vehicle) => onChange({ ...cargo, vehicle })} options={vehicleChoices} step={3} title="차량 선택" value={cargo.vehicle} />
+      <ChoiceSection onChange={(item) => onChange({ ...cargo, item })} options={itemChoices} step={4} title="품목 선택" value={cargo.item} />
 
       <section className="cargo-field cargo-description panel-v3">
         <div className="cargo-field__title"><span>5</span><h2>화물 추가 정보</h2>{cargoDetailComplete && <em><Icon name="check" size={14} /> 입력 완료</em>}</div>
