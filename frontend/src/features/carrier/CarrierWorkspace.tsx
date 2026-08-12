@@ -357,12 +357,8 @@ function RouteMapScreen({ route, progress, hasMoreOffers, onArrive }: { route: s
         )}
       </div>
       <div className="route-progress"><span style={{ width: `${progress}%` }} /></div>
-      <section className="carrier-brief-card">
-        <span className="brief-icon"><Icon name="shield" /></span>
-        <div><strong>안전 우선</strong><p>운전 중에는 판단을 요구하지 않습니다. 정차 후 다음 콜을 확인하세요.</p></div>
-      </section>
       <button className="button button--primary carrier-wide-button" onClick={onArrive} type="button">
-        {hasMoreOffers ? '정차 확인 · 다음 콜 보기' : '하차 완료 · 운행 종료'}
+        {hasMoreOffers ? '다음 콜 보기' : '하차 완료 · 운행 종료'}
       </button>
     </div>
   )
@@ -396,33 +392,56 @@ function BackhaulDecisionScreen({ offer, onAccept, onGoHome }: { offer: Backhaul
 }
 
 function TripSummaryScreen({ selectedCandidate, acceptedOffers, onRestart }: { selectedCandidate: Candidate | null; acceptedOffers: BackhaulOffer[]; onRestart: () => void }) {
+  const selectedOrder = selectedCandidate ? orders.find((order) => order.route === selectedCandidate.route) : null
+  const loadedKm = (selectedOrder?.distance ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.distance, 0)
+  const emptyKm = (selectedCandidate?.emptyKm ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.emptyKm, 0)
+  const totalKm = loadedKm + emptyKm
+  const totalDuration = (selectedCandidate?.duration ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.duration, 0)
   const totalNet = (selectedCandidate?.net ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.net, 0)
   const totalCalls = (selectedCandidate ? 1 : 0) + acceptedOffers.length
-  const reducedEmptyKm = acceptedOffers.reduce(
-    (sum, offer) => sum + Math.max(0, offer.expectedEmptyKmWithoutBackhaul - offer.emptyKm),
-    0,
-  )
+  const emptyRate = totalKm > 0 ? (emptyKm / totalKm) * 100 : 0
+  const tripRows = [
+    ...(selectedCandidate && selectedOrder
+      ? [{ id: `candidate-${selectedCandidate.id}`, route: selectedCandidate.route, distance: selectedOrder.distance + selectedCandidate.emptyKm, net: selectedCandidate.net }]
+      : []),
+    ...acceptedOffers.map((offer) => ({ id: `backhaul-${offer.id}`, route: offer.route, distance: offer.distance + offer.emptyKm, net: offer.net })),
+  ]
+
+  const durationHours = Math.floor(totalDuration)
+  const durationMinutes = Math.round((totalDuration - durationHours) * 60)
+  const durationText = durationMinutes > 0 ? `${durationHours}시간 ${durationMinutes}분` : `${durationHours}시간`
+
   return (
-    <div className="carrier-scroll carrier-simple-screen">
+    <div className="carrier-scroll carrier-simple-screen carrier-report-screen">
       <div className="simple-screen-heading">
         <span className="icon-box icon-box--yellow"><Icon name="chart" /></span>
-        <div><h2>오늘의 운행 요약</h2><p>수고하셨습니다. 오늘 성과를 확인하세요.</p></div>
+        <div><h2>오늘의 운행 리포트</h2><p>오늘 달린 거리와 운행 성과를 확인하세요.</p></div>
       </div>
       <section className="performance-hero">
-        <Icon name="wallet" size={35} />
-        <span>오늘 총 실수령</span>
-        <strong>{totalNet.toFixed(1)}만원</strong>
-        <p>총 {totalCalls}건의 콜을 완료했습니다.</p>
+        <Icon name="route" size={35} />
+        <span>오늘 총 주행거리</span>
+        <strong>{totalKm.toLocaleString()} km</strong>
+        <p>적재 {loadedKm.toLocaleString()}km · 공차 {emptyKm.toLocaleString()}km</p>
       </section>
       <div className="carrier-quick-grid">
-        <article title="복화 미연결 예상 공차거리에서 실제 복화 상차지까지의 공차거리를 뺀 값">
-          <Icon name="route" />
-          <strong>{reducedEmptyKm}km</strong>
-          <span>복화로 줄인 공차</span>
-          <small>미연결 예상 대비</small>
-        </article>
-        <article><Icon name="leaf" /><strong>{acceptedOffers.length}건</strong><span>복화 연결</span></article>
+        <article><Icon name="check" /><strong>{totalCalls}건</strong><span>완료 콜</span></article>
+        <article><Icon name="clock" /><strong>{durationText}</strong><span>총 운행시간</span></article>
+        <article><Icon name="wallet" /><strong>{totalNet.toFixed(1)}만원</strong><span>총 실수령</span></article>
+        <article><Icon name="route" /><strong>{emptyRate.toFixed(1)}%</strong><span>공차 비율</span></article>
       </div>
+      <section className="carrier-trip-log">
+        <div className="carrier-trip-log__heading">
+          <strong>오늘 운행 내역</strong>
+          <span>{totalCalls}건</span>
+        </div>
+        {tripRows.map((trip, index) => (
+          <div className="carrier-trip-log__row" key={trip.id}>
+            <span>{index + 1}</span>
+            <div><strong>{trip.route}</strong><small>{trip.distance.toLocaleString()}km 운행</small></div>
+            <b>{trip.net.toFixed(1)}만원</b>
+          </div>
+        ))}
+      </section>
       <button className="button button--primary carrier-wide-button" onClick={onRestart} type="button">처음으로</button>
     </div>
   )
@@ -503,7 +522,6 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
             </div>
           ))}
         </div>
-        <div className="rail-principle"><Icon name="shield" /><p>정차 시에만 상세 비교를 열어 안전한 선택을 돕습니다.</p></div>
       </aside>
       <div className="carrier-device-shell">
         <button
