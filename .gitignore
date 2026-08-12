@@ -1,0 +1,26 @@
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python / backend & ai
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Env
+.env
+.env.local
+
+# OS
+.DS_Store
+
+# AI artifacts
+ai/data/*
+!ai/data/.gitkeep
+ai/models/*.pkl
+ai/models/*.pt
+ai/models/*.onnx
+!ai/models/.gitkeep
