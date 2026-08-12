@@ -1,5 +1,4 @@
 export type CarrierStage =
-  | 'login'
   | 'base-profile'
   | 'preferences'
   | 'home'
@@ -11,7 +10,6 @@ export type CarrierStage =
 export type NotificationKind = 'ai-candidate' | 'backhaul' | null
 
 export const carrierStageLabels: Record<CarrierStage, string> = {
-  login: '로그인',
   'base-profile': '기본 조건 확인',
   preferences: '선호 조건 설정',
   home: '오더 게시판',

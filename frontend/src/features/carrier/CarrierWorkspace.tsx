@@ -9,18 +9,6 @@ function routeEndpoints(route: string) {
   return { originLabel, destinationLabel, origin: cityCoords[originLabel], destination: cityCoords[destinationLabel] }
 }
 
-function LoginScreen({ onNext }: { onNext: () => void }) {
-  return (
-    <div className="carrier-scroll carrier-simple-screen">
-      <div className="simple-screen-heading">
-        <span className="icon-box icon-box--yellow"><Icon name="truck" /></span>
-        <div><h2>Mov!n Carrier</h2><p>운송인으로 로그인하고 오늘의 콜을 확인하세요.</p></div>
-      </div>
-      <button className="button button--primary carrier-wide-button" onClick={onNext} type="button">카카오로 시작하기</button>
-    </div>
-  )
-}
-
 function PreferenceChipGroup({ label, options, selected, onSelect }: { label: string; options: string[]; selected: string | null; onSelect: (value: string) => void }) {
   return (
     <section className="preference-list">
@@ -447,7 +435,7 @@ function NotificationToast({ kind, onOpen }: { kind: NotificationKind; onOpen: (
 }
 
 export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () => void }) {
-  const [stage, setStage] = useState<CarrierStage>('login')
+  const [stage, setStage] = useState<CarrierStage>('base-profile')
   const [notification, setNotification] = useState<NotificationKind>(null)
   const [legIndex, setLegIndex] = useState(0)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
@@ -485,7 +473,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
   }
 
   const restart = () => {
-    setStage('login')
+    setStage('base-profile')
     setNotification(null)
     setLegIndex(0)
     setSelectedCandidate(null)
@@ -500,7 +488,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
         <span className="mono-label">TODAY'S ROUTE</span>
         <h2>운송인 흐름</h2>
         <div className="stage-list">
-          {(['login', 'base-profile', 'preferences', 'home', 'candidates', 'route-map', 'backhaul-decision', 'summary'] as CarrierStage[]).map((s) => (
+          {(['base-profile', 'preferences', 'home', 'candidates', 'route-map', 'backhaul-decision', 'summary'] as CarrierStage[]).map((s) => (
             <div className={s === stage ? 'is-active' : ''} key={s}>
               <span><Icon name="truck" size={16} /></span>
               <p><strong>{carrierStageLabels[s]}</strong></p>
@@ -509,76 +497,79 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
         </div>
         <div className="rail-principle"><Icon name="shield" /><p>정차 시에만 상세 비교를 열어 안전한 선택을 돕습니다.</p></div>
       </aside>
-      <div className="carrier-phone">
-        <header className="carrier-header">
-          <div className="carrier-header-titles">
-            <h1>Mov!n <span>Carrier</span></h1>
-            <span className="mono-label">{carrierStageLabels[stage]}</span>
+      <div className="carrier-device-shell">
+        <button
+          aria-label="화주·주선사 화면으로 전환"
+          className="carrier-return-button"
+          onClick={onReturnToShipper}
+          title="화주·주선사 화면으로 전환"
+          type="button"
+        >
+          <Icon name="switch" />
+        </button>
+        <div className="carrier-phone">
+          <header className="carrier-header">
+            <div className="carrier-header-titles">
+              <h1>Mov!n <span>Carrier</span></h1>
+              <span className="mono-label">{carrierStageLabels[stage]}</span>
+            </div>
+          </header>
+          <div className="carrier-content">
+            {stage === 'base-profile' && <BaseProfileScreen onNext={() => setStage('preferences')} />}
+            {stage === 'preferences' && (
+              <PreferenceSetupScreen
+                onNext={(prefs) => {
+                  setPreferences(prefs)
+                  setStage('home')
+                }}
+              />
+            )}
+            {stage === 'home' && <OrderBoardScreen preferences={preferences} scanning={!notification} />}
+            {stage === 'candidates' && (
+              <CandidateSelectScreen
+                onConfirm={(candidate) => {
+                  setSelectedCandidate(candidate)
+                  setActiveRoute(candidate.route)
+                  setStage('route-map')
+                }}
+              />
+            )}
+            {stage === 'route-map' && (
+              <RouteMapScreen
+                hasMoreOffers={hasMoreOffers}
+                onArrive={() => {
+                  if (hasMoreOffers) {
+                    setNotification('backhaul')
+                  } else {
+                    setStage('summary')
+                  }
+                }}
+                progress={progress}
+                route={activeRoute}
+              />
+            )}
+            {stage === 'backhaul-decision' && (
+              <BackhaulDecisionScreen
+                offer={backhaulOffers[legIndex]}
+                onAccept={() => {
+                  const offer = backhaulOffers[legIndex]
+                  setAcceptedOffers((prev) => [...prev, offer])
+                  setActiveRoute(offer.route)
+                  setLegIndex((prev) => prev + 1)
+                  setStage('route-map')
+                }}
+                onGoHome={() => setStage('summary')}
+              />
+            )}
+            {stage === 'summary' && (
+              <TripSummaryScreen acceptedOffers={acceptedOffers} onRestart={restart} selectedCandidate={selectedCandidate} />
+            )}
           </div>
-          <div>
-            <button aria-label="화주·주선사 화면으로 전환" onClick={onReturnToShipper} type="button"><Icon name="switch" /></button>
-            <button aria-label="알림" onClick={openNotification} type="button">
-              <Icon name="bell" />
-              {notification && <span className="carrier-notify-dot" />}
-            </button>
-          </div>
-        </header>
-        <div className="carrier-content">
-          {stage === 'login' && <LoginScreen onNext={() => setStage('base-profile')} />}
-          {stage === 'base-profile' && <BaseProfileScreen onNext={() => setStage('preferences')} />}
-          {stage === 'preferences' && (
-            <PreferenceSetupScreen
-              onNext={(prefs) => {
-                setPreferences(prefs)
-                setStage('home')
-              }}
-            />
-          )}
-          {stage === 'home' && <OrderBoardScreen preferences={preferences} scanning={!notification} />}
-          {stage === 'candidates' && (
-            <CandidateSelectScreen
-              onConfirm={(candidate) => {
-                setSelectedCandidate(candidate)
-                setActiveRoute(candidate.route)
-                setStage('route-map')
-              }}
-            />
-          )}
-          {stage === 'route-map' && (
-            <RouteMapScreen
-              hasMoreOffers={hasMoreOffers}
-              onArrive={() => {
-                if (hasMoreOffers) {
-                  setNotification('backhaul')
-                } else {
-                  setStage('summary')
-                }
-              }}
-              progress={progress}
-              route={activeRoute}
-            />
-          )}
-          {stage === 'backhaul-decision' && (
-            <BackhaulDecisionScreen
-              offer={backhaulOffers[legIndex]}
-              onAccept={() => {
-                const offer = backhaulOffers[legIndex]
-                setAcceptedOffers((prev) => [...prev, offer])
-                setActiveRoute(offer.route)
-                setLegIndex((prev) => prev + 1)
-                setStage('route-map')
-              }}
-              onGoHome={() => setStage('summary')}
-            />
-          )}
-          {stage === 'summary' && (
-            <TripSummaryScreen acceptedOffers={acceptedOffers} onRestart={restart} selectedCandidate={selectedCandidate} />
-          )}
+          <NotificationToast
+            kind={stage === 'home' || stage === 'route-map' ? notification : null}
+            onOpen={openNotification}
+          />
         </div>
-        <NotificationToast
-          kind={stage === 'home' || stage === 'route-map' ? notification : null}
-          onOpen={openNotification}
-        />
       </div>
     </div>
   )

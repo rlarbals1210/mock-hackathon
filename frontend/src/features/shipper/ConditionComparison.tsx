@@ -54,7 +54,7 @@ export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistratio
     return (
       <div className="flow-screen">
         <header className="flow-heading"><div><h1>조건 비교</h1><p>콜 등록을 완료하면 현재 조건과 완화 조건을 비교합니다.</p></div></header>
-        <section className="empty-comparison panel-v3"><Icon name="compare" size={38} /><h2>비교할 운송 기본 정보가 없습니다.</h2><p>출발지·도착지·차량·품목·상차 날짜·상차 시간을 모두 선택해 주세요.</p><button className="primary-v3" onClick={onOpenRegistration} type="button">콜 등록 열기</button></section>
+        <section className="empty-comparison panel-v3"><Icon name="compare" size={38} /><h2>비교할 운송 기본 정보가 없습니다.</h2><p>출발지·도착지·차량·품목·품목 상세·중량·상차 날짜·상차 시간을 모두 입력해 주세요.</p><button className="primary-v3" onClick={onOpenRegistration} type="button">콜 등록 열기</button></section>
       </div>
     )
   }

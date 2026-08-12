@@ -11,6 +11,7 @@ const shipperNavigation: { id: ShipperSection; label: string; icon: IconName }[]
   { id: 'compare', label: '조건 비교', icon: 'balance' },
   { id: 'report', label: '월간 리포트', icon: 'report' },
   { id: 'profile', label: '내 정보', icon: 'account' },
+  { id: 'information', label: 'Information', icon: 'info' },
 ]
 
 function Brand() {

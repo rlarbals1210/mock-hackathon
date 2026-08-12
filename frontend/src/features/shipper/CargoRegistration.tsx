@@ -3,8 +3,10 @@ import { Icon } from '../../components/Icon'
 import { TimeWindowDial } from './TimeWindowDial'
 import {
   cargoIsComplete,
+  formatCargoWeight,
   formatDate,
   formatTimeWindow,
+  getCargoWeightKg,
   itemOptions,
   regionLocations,
   regionOptions,
@@ -146,13 +148,19 @@ function ChoiceSection({
 }
 
 export function CargoRegistration({ cargo, onChange, onContinue, onOpenPreferences, preferencesReady }: CargoRegistrationProps) {
-  const completed = [cargo.origin, cargo.destination, cargo.vehicle, cargo.item, cargo.loadingDate, cargo.startMinutes !== null && cargo.endMinutes !== null].filter(Boolean).length
+  const cargoWeightKg = getCargoWeightKg(cargo.cargoWeight)
+  const cargoDescriptionComplete = Boolean(cargo.cargoDescription.trim())
+  const cargoWeightComplete = cargoWeightKg !== null
+  const cargoDetailComplete = cargoDescriptionComplete && cargoWeightComplete
+  const completed = [cargo.origin, cargo.destination, cargo.vehicle, cargo.item, cargoDescriptionComplete, cargoWeightComplete, cargo.loadingDate, cargo.startMinutes !== null && cargo.endMinutes !== null].filter(Boolean).length
   const ready = cargoIsComplete(cargo) && preferencesReady
   const summary = [
     ['출발지', cargo.origin],
     ['도착지', cargo.destination],
     ['차량', cargo.vehicle],
     ['품목', cargo.item],
+    ['품목 상세', cargo.cargoDescription],
+    ['중량', cargoWeightComplete ? formatCargoWeight(cargoWeightKg) : '미선택'],
     ['상차 날짜', formatDate(cargo.loadingDate)],
     ['상차 시간', formatTimeWindow(cargo)],
   ]
@@ -161,7 +169,7 @@ export function CargoRegistration({ cargo, onChange, onContinue, onOpenPreferenc
     <div className="flow-screen cargo-registration">
       <header className="flow-heading">
         <div><h1>화물 정보 등록</h1><p>운송 기본 정보를 선택하면 등록 예정 노선이 한 칸씩 채워집니다.</p></div>
-        <div className="flow-heading__progress"><span>콜 정보 진행률</span><strong>{completed}/6</strong><div><i style={{ width: `${(completed / 6) * 100}%` }} /></div></div>
+        <div className="flow-heading__progress"><span>콜 정보 진행률</span><strong>{completed}/8</strong><div><i style={{ width: `${(completed / 8) * 100}%` }} /></div></div>
       </header>
 
       <div className="cargo-locations panel-v3">
@@ -172,19 +180,31 @@ export function CargoRegistration({ cargo, onChange, onContinue, onOpenPreferenc
       <ChoiceSection onChange={(vehicle) => onChange({ ...cargo, vehicle })} options={vehicleOptions} step={3} title="차량 선택" value={cargo.vehicle} />
       <ChoiceSection onChange={(item) => onChange({ ...cargo, item })} options={itemOptions} step={4} title="품목 선택" value={cargo.item} />
 
+      <section className="cargo-field cargo-description panel-v3">
+        <div className="cargo-field__title"><span>5</span><h2>화물 추가 정보</h2>{cargoDetailComplete && <em><Icon name="check" size={14} /> 입력 완료</em>}</div>
+        <div className="cargo-description__fields">
+          <label htmlFor="cargo-description"><span>품목 상세</span><input id="cargo-description" maxLength={160} onChange={(event) => onChange({ ...cargo, cargoDescription: event.target.value })} placeholder="예: 냉동 만두, 파렛트 4개" value={cargo.cargoDescription} /></label>
+          <label htmlFor="cargo-weight"><span>중량</span><input aria-describedby="cargo-description-help" id="cargo-weight" inputMode="decimal" maxLength={30} onChange={(event) => onChange({ ...cargo, cargoWeight: event.target.value })} placeholder="예: 2,400kg 또는 2.5톤" value={cargo.cargoWeight} /></label>
+        </div>
+        <div className={`cargo-description__status${cargo.cargoWeight.trim() && cargoWeightKg === null ? ' is-warning' : cargoDetailComplete ? ' is-complete' : ''}`} id="cargo-description-help">
+          <Icon name={cargoDetailComplete ? 'check' : 'info'} size={16} />
+          <span>{cargoDetailComplete ? `인식 중량 ${formatCargoWeight(cargoWeightKg)} · 배차 및 AI 분석 입력값으로 저장됩니다.` : cargo.cargoWeight.trim() && cargoWeightKg === null ? '중량을 인식할 수 없어요. 숫자와 kg 또는 톤을 함께 입력해 주세요.' : !cargoDescriptionComplete && cargoWeightComplete ? '품목 상세를 입력해 주세요.' : cargoDescriptionComplete ? '중량을 kg 또는 톤 단위로 입력해 주세요.' : '품목 상세와 중량을 각각 입력해 주세요.'}</span>
+        </div>
+      </section>
+
       <section className="schedule-grid">
         <div className="cargo-field panel-v3">
-          <div className="cargo-field__title"><span>5</span><h2>상차 날짜</h2>{cargo.loadingDate && <em><Icon name="check" size={14} /> 선택 완료</em>}</div>
+          <div className="cargo-field__title"><span>6</span><h2>상차 날짜</h2>{cargo.loadingDate && <em><Icon name="check" size={14} /> 선택 완료</em>}</div>
           <CalendarPicker onChange={(loadingDate) => onChange({ ...cargo, loadingDate })} value={cargo.loadingDate} />
         </div>
         <div className="cargo-field panel-v3">
-          <div className="cargo-field__title"><span>6</span><h2>상차 시간창</h2>{cargo.startMinutes !== null && <em><Icon name="check" size={14} /> 선택 완료</em>}</div>
+          <div className="cargo-field__title"><span>7</span><h2>상차 시간창</h2>{cargo.startMinutes !== null && <em><Icon name="check" size={14} /> 선택 완료</em>}</div>
           <TimeWindowDial endMinutes={cargo.endMinutes} onChange={(startMinutes, endMinutes) => onChange({ ...cargo, startMinutes, endMinutes })} startMinutes={cargo.startMinutes} />
         </div>
       </section>
 
       <section className="route-preview panel-v3">
-        <div className="route-preview__title"><span>7</span><div><h2>등록 예정 노선</h2><p>조건 비교 전 입력 내용을 확인하세요.</p></div></div>
+        <div className="route-preview__title"><span>8</span><div><h2>등록 예정 노선</h2><p>조건 비교 전 입력 내용을 확인하세요.</p></div></div>
         <dl>{summary.map(([label, value]) => <div className={value && value !== '미선택' ? 'is-filled' : ''} key={label}><dt>{label}</dt><dd>{value || '미선택'}</dd>{value && value !== '미선택' && <Icon name="check" size={15} />}</div>)}</dl>
       </section>
 

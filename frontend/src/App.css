@@ -2092,6 +2092,41 @@
   flex: 0 0 auto;
 }
 
+.carrier-device-shell {
+  position: relative;
+  width: min(100%, 470px);
+  flex: 0 1 470px;
+}
+
+.carrier-return-button {
+  position: absolute;
+  top: 22px;
+  left: calc(100% + 16px);
+  z-index: 10;
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid #dedede;
+  border-radius: 50%;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.carrier-return-button:hover {
+  background: var(--yellow);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  transform: translateY(-2px);
+}
+
+.carrier-return-button:active {
+  transform: scale(0.96);
+}
+
 .carrier-stage-rail > .mono-label {
   color: #817500;
 }
@@ -2193,7 +2228,7 @@
 .carrier-phone {
   position: relative;
   display: flex;
-  width: min(100%, 470px);
+  width: 100%;
   height: min(880px, calc(100vh - 60px));
   overflow: hidden;
   flex-direction: column;
@@ -2234,39 +2269,6 @@
 
 .carrier-header-titles .mono-label {
   color: var(--muted);
-}
-
-.carrier-header > div {
-  display: flex;
-  gap: 4px;
-}
-
-.carrier-header button {
-  position: relative;
-  display: inline-flex;
-  width: 42px;
-  height: 42px;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.carrier-notify-dot {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
-  background: #e0442c;
-  border: 2px solid #fff;
-  border-radius: 50%;
-}
-
-.carrier-header button:hover {
-  background: var(--surface-low);
 }
 
 .carrier-notification {
@@ -3187,7 +3189,7 @@
     z-index: 30;
     display: grid;
     height: 76px;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     padding: 7px 8px 10px;
     background: rgba(255, 255, 255, 0.96);
     border-top: 1px solid #e6e6e6;
@@ -3204,7 +3206,7 @@
     background: transparent;
     border: 0;
     border-radius: 10px;
-    font-size: 9px;
+    font-size: 8px;
   }
 
   .mobile-shipper-nav button.is-active {
@@ -3250,6 +3252,22 @@
 
   .carrier-stage-rail {
     display: none;
+  }
+
+  .carrier-device-shell {
+    width: 100%;
+    height: 100dvh;
+    flex: 1;
+  }
+
+  .carrier-return-button {
+    position: fixed;
+    top: 20px;
+    right: 18px;
+    left: auto;
+    width: 42px;
+    height: 42px;
+    box-shadow: none;
   }
 
   .carrier-phone {
@@ -4238,6 +4256,63 @@
   padding: 7px;
 }
 
+.cargo-description {
+  display: grid;
+  gap: 12px;
+}
+
+.cargo-description__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.65fr);
+  gap: 12px;
+}
+
+.cargo-description__fields label {
+  display: grid;
+  gap: 7px;
+}
+
+.cargo-description__fields label > span {
+  color: #545b59;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cargo-description__fields input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  color: var(--ink);
+  background: #fbfbfb;
+  border: 1px solid #d5d5d5;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.cargo-description__fields input:focus {
+  background: #fff;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(0, 119, 90, 0.1);
+  outline: 0;
+}
+
+.cargo-description__status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #727876;
+  font-size: 10px;
+}
+
+.cargo-description__status.is-complete {
+  color: var(--green);
+}
+
+.cargo-description__status.is-warning {
+  color: #a94d20;
+}
+
 .schedule-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -4461,7 +4536,7 @@
 
 .route-preview dl {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
   margin: 0;
 }
@@ -5644,6 +5719,22 @@
   gap: 14px;
 }
 
+.profile-layout-v3--account {
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  align-items: start;
+}
+
+.information-layout-v3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.85fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.information-metrics-v3 article {
+  min-height: 92px;
+}
+
 .profile-layout-v3__main,
 .profile-layout-v3__side {
   display: grid;
@@ -5907,7 +5998,7 @@
 
 .current-dispatch-v3 dl {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   margin: 0;
   border-top: 1px solid #ededed;
 }
@@ -5920,6 +6011,14 @@
 
 .current-dispatch-v3 dl > div + div {
   border-left: 1px solid #ededed;
+}
+
+.current-dispatch-v3 dl > div:nth-child(5n + 1) {
+  border-left: 0;
+}
+
+.current-dispatch-v3 dl > div:nth-child(n + 6) {
+  border-top: 1px solid #ededed;
 }
 
 .current-dispatch-v3 dt {
@@ -6093,7 +6192,8 @@
 
   .report-detail-grid,
   .report-bottom-grid,
-  .profile-layout-v3 {
+  .profile-layout-v3,
+  .information-layout-v3 {
     grid-template-columns: 1fr;
   }
 
@@ -6101,7 +6201,11 @@
     grid-template-columns: repeat(4, 1fr);
   }
 
-  .current-dispatch-v3 dl > div:nth-child(5) {
+  .current-dispatch-v3 dl > div + div {
+    border-left: 1px solid #ededed;
+  }
+
+  .current-dispatch-v3 dl > div:nth-child(4n + 1) {
     border-left: 0;
     border-top: 1px solid #ededed;
   }
@@ -6167,6 +6271,7 @@
   .preference-options-v3,
   .preference-options-v3--4,
   .cargo-locations,
+  .cargo-description__fields,
   .schedule-grid,
   .comparison-pair,
   .dialog-options {
@@ -6292,6 +6397,10 @@
 
   .current-dispatch-v3 dl {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .current-dispatch-v3 dl > div + div {
+    border-left: 1px solid #ededed;
   }
 
   .current-dispatch-v3 dl > div:nth-child(odd) {

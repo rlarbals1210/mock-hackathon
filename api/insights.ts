@@ -16,6 +16,8 @@ type InsightPayload = {
   route?: string
   vehicle?: string
   item?: string
+  cargoDetail?: string
+  cargoWeightKg?: number | null
   loadingWindow?: string
   candidates?: number
   fare?: number
@@ -60,6 +62,8 @@ export default async function handler(request: RequestLike, response: ResponseLi
     route: cleanText(body.route, '미선택'),
     vehicle: cleanText(body.vehicle, '미선택'),
     item: cleanText(body.item, '미선택'),
+    cargoDetail: cleanText(body.cargoDetail, '미선택'),
+    cargoWeightKg: cleanNumber(body.cargoWeightKg),
     loadingWindow: cleanText(body.loadingWindow, '미선택'),
     candidates: cleanNumber(body.candidates),
     fare: cleanNumber(body.fare),

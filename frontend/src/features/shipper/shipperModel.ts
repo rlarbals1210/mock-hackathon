@@ -1,4 +1,4 @@
-export type ShipperSection = 'preferences' | 'register' | 'compare' | 'report' | 'profile'
+export type ShipperSection = 'preferences' | 'register' | 'compare' | 'report' | 'profile' | 'information'
 
 export type PreferenceGroupId = 'result' | 'schedule' | 'carrier'
 export type PreferenceState = Record<PreferenceGroupId, string[]>
@@ -10,6 +10,8 @@ export type CargoForm = {
   destination: string
   vehicle: string
   item: string
+  cargoDescription: string
+  cargoWeight: string
   loadingDate: string
   startMinutes: number | null
   endMinutes: number | null
@@ -77,6 +79,8 @@ export const emptyCargo: CargoForm = {
   destination: '',
   vehicle: '',
   item: '',
+  cargoDescription: '',
+  cargoWeight: '',
   loadingDate: '',
   startMinutes: null,
   endMinutes: null,
@@ -138,12 +142,36 @@ export function preferencesAreComplete(preferences: PreferenceState) {
   return Object.values(preferences).every((items) => items.length > 0)
 }
 
+export function getCargoWeightKg(description: string) {
+  const normalized = description.trim().toLowerCase().replaceAll(',', '')
+  const kilogramMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:kg|킬로그램)/)
+  if (kilogramMatch) {
+    const weightKg = Math.round(Number(kilogramMatch[1]) * 10) / 10
+    return weightKg > 0 ? weightKg : null
+  }
+
+  const tonMatch = normalized.match(/(\d+(?:\.\d+)?)\s*톤/) ?? normalized.match(/(\d+(?:\.\d+)?)\s*(?:tons?|t)(?:\s|$|[,.()])/)
+  if (tonMatch) {
+    const weightKg = Math.round(Number(tonMatch[1]) * 10000) / 10
+    return weightKg > 0 ? weightKg : null
+  }
+  return null
+}
+
+export function formatCargoWeight(weightKg: number | null) {
+  if (weightKg === null) return '중량 미인식'
+  if (weightKg >= 1000) return `${(weightKg / 1000).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}톤 (${weightKg.toLocaleString('ko-KR')}kg)`
+  return `${weightKg.toLocaleString('ko-KR')}kg`
+}
+
 export function cargoIsComplete(cargo: CargoForm) {
   return Boolean(
     cargo.origin
       && cargo.destination
       && cargo.vehicle
       && cargo.item
+      && cargo.cargoDescription.trim()
+      && getCargoWeightKg(cargo.cargoWeight) !== null
       && cargo.loadingDate
       && cargo.startMinutes !== null
       && cargo.endMinutes !== null,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { CargoRegistration } from './CargoRegistration'
 import { ConditionComparison } from './ConditionComparison'
+import { InformationScreen } from './InformationScreen'
 import { MonthlyReport } from './MonthlyReport'
 import { ProfileScreen } from './ProfileScreen'
 import {
@@ -9,7 +10,9 @@ import {
   createOperation,
   emptyCargo,
   formatDate,
+  formatCargoWeight,
   formatTimeWindow,
+  getCargoWeightKg,
   preferenceGroups,
   preferencesAreComplete,
   type CargoForm,
@@ -35,7 +38,7 @@ function WorkflowStepper({ preferencesReady, cargoReady, choice, active }: { pre
   return (
     <nav aria-label="화주 배차 진행 단계" className="workflow-stepper">
       {steps.map((step, index) => (
-        <div className={`${step.complete ? 'is-complete' : ''}${active === step.section || (active === 'profile' && step.section === 'report') ? ' is-active' : ''}`} key={step.section}>
+        <div className={`${step.complete ? 'is-complete' : ''}${active === step.section ? ' is-active' : ''}`} key={step.section}>
           <span>{step.complete ? <Icon name="check" size={14} /> : index + 1}</span>
           <strong>{step.label}</strong>
           <small>{step.complete ? '완료' : active === step.section ? '진행 중' : '대기'}</small>
@@ -117,6 +120,8 @@ function CurrentDispatchInfo({ cargo, preferencesReady, choice }: { cargo: Cargo
     ['도착지', cargo.destination || '미선택'],
     ['차량', cargo.vehicle || '미선택'],
     ['품목', cargo.item || '미선택'],
+    ['품목 상세', cargo.cargoDescription || '미선택'],
+    ['중량', formatCargoWeight(getCargoWeightKg(cargo.cargoWeight))],
     ['상차 날짜', formatDate(cargo.loadingDate)],
     ['상차 시간', formatTimeWindow(cargo)],
     ['현재 상태', status],
@@ -176,7 +181,7 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
   }
 
   const continueToComparison = () => {
-    addOperation('콜 등록 완료', `${cargo.origin} → ${cargo.destination} · ${cargo.vehicle} · ${formatTimeWindow(cargo)}`)
+    addOperation('콜 등록 완료', `${cargo.origin} → ${cargo.destination} · ${cargo.vehicle} · ${cargo.cargoDescription} · ${formatCargoWeight(getCargoWeightKg(cargo.cargoWeight))} · ${formatTimeWindow(cargo)}`)
     setToast('콜 정보를 저장했습니다. 현재 조건과 완화 조건을 비교합니다.')
     onNavigate('compare')
   }
@@ -197,7 +202,9 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
         ? <ConditionComparison cargo={cargo} choice={choice} onChoose={chooseCondition} onOpenRegistration={() => onNavigate('register')} />
         : section === 'report'
           ? <MonthlyReport adjustedHours={adjustedHours} cargo={cargo} choice={choice} operations={operations} />
-          : <ProfileScreen onEditPreferences={() => onNavigate('preferences')} onOpenReport={() => onNavigate('report')} operations={operations} preferences={preferences} timeProposalCount={choice ? 1 : 0} />
+          : section === 'information'
+            ? <InformationScreen timeProposalCount={choice ? 1 : 0} />
+            : <ProfileScreen onEditPreferences={() => onNavigate('preferences')} operations={operations} preferences={preferences} />
 
   return (
     <div className="shipper-workspace-v3">

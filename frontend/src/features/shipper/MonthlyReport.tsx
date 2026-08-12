@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../../components/Icon'
 import {
+  formatCargoWeight,
   formatCurrency,
   formatTimeWindow,
+  getCargoWeightKg,
   getCarbonReference,
   getWindowHours,
   interpolatePrediction,
@@ -53,6 +55,8 @@ export function MonthlyReport({ cargo, choice, adjustedHours, operations }: Mont
         route: `${cargo.origin || '미선택'} → ${cargo.destination || '미선택'}`,
         vehicle: cargo.vehicle || '미선택',
         item: cargo.item || '미선택',
+        cargoDetail: cargo.cargoDescription || '미선택',
+        cargoWeightKg: getCargoWeightKg(cargo.cargoWeight),
         loadingWindow: choice === 'adjusted' ? `${adjustedHours}시간` : formatTimeWindow(cargo),
         candidates: selectedPrediction.candidates,
         fare: selectedPrediction.fare,
@@ -131,7 +135,7 @@ export function MonthlyReport({ cargo, choice, adjustedHours, operations }: Mont
       {showReport && (
         <div className="modal-backdrop report-modal-backdrop" role="presentation">
           <section aria-labelledby="report-dialog-title" aria-modal="true" className="report-dialog" role="dialog">
-            <header><div><span className="eyebrow">MOV!N DATA REPORT · 2026.08</span><h2 id="report-dialog-title">화주 배차조건 선택 리포트</h2><p>{cargo.origin || '미선택'} → {cargo.destination || '미선택'} · {cargo.vehicle || '미선택'} · {cargo.item || '미선택'}</p></div><button aria-label="리포트 닫기" onClick={() => setShowReport(false)} type="button">×</button></header>
+            <header><div><span className="eyebrow">MOV!N DATA REPORT · 2026.08</span><h2 id="report-dialog-title">화주 배차조건 선택 리포트</h2><p>{cargo.origin || '미선택'} → {cargo.destination || '미선택'} · {cargo.vehicle || '미선택'} · {cargo.item || '미선택'} · {cargo.cargoDescription || '품목 상세 미입력'} · {formatCargoWeight(getCargoWeightKg(cargo.cargoWeight))}</p></div><button aria-label="리포트 닫기" onClick={() => setShowReport(false)} type="button">×</button></header>
             <div className="report-dialog__summary"><article><span>최근 선택</span><strong>{statusRows[0][1]}</strong></article><article><span>예상 배차</span><strong>{choice ? `${selectedPrediction.dispatchMinutes}분` : '미선택'}</strong></article><article><span>예상 운임</span><strong>{choice ? formatCurrency(selectedPrediction.fare) : '미선택'}</strong></article><article><span>탄소 참고</span><strong>{carbon.value}kgCO₂e</strong></article></div>
             <section><h3>Gemini Flash 자료 해석</h3><p>{analysis}</p></section>
             <section><h3>예상 결과 산정 기준</h3><ul><li>수락 가능 차주 수는 등록한 상차 시간과 조정한 시간 범위를 비교해 추정했습니다.</li><li>예상 운임과 배차시간은 현재 조건과 시간 조정안의 비교값입니다.</li><li>탄소 감축량은 국내계수판 방식 B를 적용했습니다.</li><li>톨비 등 별도 비용은 예상 운임에 포함되지 않습니다.</li></ul></section>
