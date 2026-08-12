@@ -31,3 +31,16 @@ def get_catalog_service() -> CatalogService:
 @lru_cache
 def get_feedback_store() -> FeedbackStore:
     return FeedbackStore(settings.feedback_path)
+
+
+def warmup_matching_services() -> dict[str, object]:
+    """Load the large workbook and model bundles before the first user request."""
+    snapshot = get_repository().snapshot()
+    models = get_model_service()
+    models.warmup()
+    return {
+        "dataSource": snapshot.source,
+        "modelAReady": models.has_model_a,
+        "modelBReady": models.has_model_b,
+        "warnings": [*snapshot.warnings, *models.warnings],
+    }

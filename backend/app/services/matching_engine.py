@@ -23,6 +23,13 @@ from app.services.data_repository import (
     RouteRecord,
     ShipperStats,
 )
+from app.services.assumptions import (
+    DISPATCH_CURVE_EXPONENT,
+    DISPATCH_CURVE_SCALE,
+    EMPTY_COST_KRW_PER_KM,
+    FUEL_EFFICIENCY_KM_PER_LITER,
+    FUEL_PRICE_KRW_PER_LITER,
+)
 from app.services.model_service import MatchingModelService
 
 
@@ -41,9 +48,28 @@ COMPATIBLE_BODY_TYPES = {
     "카고": {"윙바디", "카고"},
     "탑차": {"윙바디", "탑차"},
 }
-FUEL_EFFICIENCY_KM_PER_LITER = {5: 4.3, 11: 3.2, 25: 2.4}
-FUEL_PRICE_KRW_PER_LITER = 1_650
-EMPTY_COST_KRW_PER_KM = {5: 850, 11: 1_050, 25: 1_350}
+
+# v13 노선명에는 시·도 컬럼이 없어서, 운송인 화면의 세부 지역 선택을
+# 출발지명에 대응시키는 MVP용 지명 사전이다.
+SUBREGION_LOCATION_TOKENS = {
+    "부산": ("부산",),
+    "대구": ("대구", "달성"),
+    "울산": ("울산",),
+    "경남": ("창원", "김해"),
+    "경북": ("경북",),
+    "서울": ("서울",),
+    "경기": ("김포", "화성", "평택", "안성", "이천", "의왕", "안산"),
+    "인천": ("인천",),
+    "대전": ("대전",),
+    "세종": ("세종",),
+    "충남": ("천안",),
+    "충북": ("청주",),
+    "광주": ("광주",),
+    "전남": ("광양",),
+    "전북": ("군산",),
+    "강원": ("강원",),
+    "제주": ("제주",),
+}
 
 
 class CarrierNotFoundError(LookupError):
@@ -132,7 +158,9 @@ class MatchingEngine:
 
     @staticmethod
     def _dispatch_minutes(candidate_count: int) -> int:
-        return int(round(266 / max(candidate_count, 1) ** 0.354))
+        # 회귀계수가 아니라 v13 생성기의 tdisp()와 동일한 시뮬레이션 곡선이다.
+        # 근거와 한계는 services/assumptions.py 및 docs/model-assumptions.md에 기록한다.
+        return int(round(DISPATCH_CURVE_SCALE / max(candidate_count, 1) ** DISPATCH_CURVE_EXPONENT))
 
     @staticmethod
     def _flex_cargo(
@@ -231,13 +259,72 @@ class MatchingEngine:
         net_income = max(0, fare - fuel_cost - empty_cost)
         return fuel_cost, empty_cost, net_income
 
-    def _score_carrier(self, carrier: CarrierRecord, route: RouteRecord, empty_km: int, net_income: int, fare: int) -> int:
+    @staticmethod
+    def _loading_period(loading_at: datetime) -> str:
+        if 6 <= loading_at.hour < 12:
+            return "MORNING"
+        if 12 <= loading_at.hour < 18:
+            return "AFTERNOON"
+        return "NIGHT"
+
+    @staticmethod
+    def _origin_matches_subregion(origin: str, preferred_subregion: str) -> bool:
+        tokens = SUBREGION_LOCATION_TOKENS.get(preferred_subregion, (preferred_subregion,))
+        return any(token in origin for token in tokens)
+
+    def _score_carrier(
+        self,
+        carrier: CarrierRecord,
+        route: RouteRecord,
+        empty_km: int,
+        net_income: int,
+        fare: int,
+        *,
+        duration_hours: float | None = None,
+        loading_at: datetime | None = None,
+        preferred_region: str | None = None,
+        preferred_subregion: str | None = None,
+        max_empty_km: int | None = None,
+        max_duration_hours: float | None = None,
+        preferred_loading_periods: frozenset[str] = frozenset(),
+        prioritize_income: bool = False,
+        prioritize_backhaul: bool = False,
+        backhaul_available: bool = False,
+    ) -> int:
         reliability = carrier.reliability * 25
         acceptance = carrier.historical_acceptance_rate * 15
         preference = 20 if carrier.preferred_region == route.destination_region else 8
         empty_score = max(0, 25 - min(empty_km, 100) * 0.25)
         income_score = min(15, (net_income / max(fare, 1)) * 18)
-        return max(0, min(100, int(round(reliability + acceptance + preference + empty_score + income_score))))
+        base_score = max(0.0, min(100.0, reliability + acceptance + preference + empty_score + income_score))
+
+        # 사용자 선호 적합도(0~100)를 별도로 만든 뒤 기존 점수 75%와 혼합한다.
+        # 필수조건 필터가 아니므로 선호 밖의 콜도 후보에서 사라지지는 않으며,
+        # 가산점 누적으로 모든 점수가 100에 포화되는 문제도 피한다.
+        preference_scores: list[float] = []
+        if preferred_region is not None:
+            region_matches = preferred_region in {route.origin_region, route.destination_region}
+            preference_scores.append(100.0 if region_matches else 0.0)
+        if preferred_subregion is not None:
+            location_matches = self._origin_matches_subregion(route.origin, preferred_subregion)
+            preference_scores.append(100.0 if location_matches else 0.0)
+        if max_empty_km is not None:
+            excess_ratio = max(0, empty_km - max_empty_km) / max(max_empty_km, 1)
+            preference_scores.append(max(0.0, 100.0 * (1 - excess_ratio)))
+        if max_duration_hours is not None and duration_hours is not None:
+            excess_ratio = max(0.0, duration_hours - max_duration_hours) / max(max_duration_hours, 0.1)
+            preference_scores.append(max(0.0, 100.0 * (1 - excess_ratio)))
+        if preferred_loading_periods and loading_at is not None:
+            preference_scores.append(100.0 if self._loading_period(loading_at) in preferred_loading_periods else 0.0)
+        if prioritize_income:
+            preference_scores.append(min(100.0, (net_income / max(fare, 1)) * 100))
+        if prioritize_backhaul:
+            preference_scores.append(100.0 if backhaul_available else 0.0)
+        score = base_score
+        if preference_scores:
+            preference_fit = sum(preference_scores) / len(preference_scores)
+            score = base_score * 0.75 + preference_fit * 0.25
+        return max(0, min(100, int(round(score))))
 
     def _carrier_brief(self, carrier: CarrierRecord, route: RouteRecord, fare: int) -> CarrierBrief:
         empty_km = self._estimated_empty_distance(carrier, route)
@@ -413,6 +500,7 @@ class MatchingEngine:
                 tonnage=cargo.tonnage,
                 bodyType=cargo.bodyType,
                 item=cargo.item,
+                cargoNote=cargo.cargoNote,
                 weightKg=cargo.weightKg,
             ),
             current=current,
@@ -436,6 +524,15 @@ class MatchingEngine:
         carrier: CarrierRecord,
         call: CallRecord,
         route: RouteRecord,
+        *,
+        preferred_region: str | None = None,
+        preferred_subregion: str | None = None,
+        max_empty_km: int | None = None,
+        max_duration_hours: float | None = None,
+        preferred_loading_periods: frozenset[str] = frozenset(),
+        prioritize_income: bool = False,
+        prioritize_backhaul: bool = False,
+        backhaul_available: bool = False,
     ) -> CarrierRecommendation | None:
         if not self._hard_eligible(
             carrier,
@@ -463,6 +560,18 @@ class MatchingEngine:
             tags.append(f"{route.destination_region} 도착")
         warning = "공차거리가 30km를 초과합니다." if empty_km > 30 else None
         duration = round(route.standard_hours + empty_km / 60 + 0.25, 1)
+        if preferred_region in {route.origin_region, route.destination_region}:
+            tags.append("설정한 선호 권역 일치")
+        if preferred_subregion and self._origin_matches_subregion(route.origin, preferred_subregion):
+            tags.append("설정한 세부 지역 일치")
+        if max_empty_km is not None and empty_km <= max_empty_km:
+            tags.append(f"공차 {max_empty_km}km 이내")
+        if max_duration_hours is not None and duration <= max_duration_hours:
+            tags.append(f"운행 {max_duration_hours:g}시간 이내")
+        if preferred_loading_periods and self._loading_period(call.loading_at) in preferred_loading_periods:
+            tags.append("선호 상차시간 일치")
+        if prioritize_backhaul and backhaul_available:
+            tags.append("복화 후보 노선 있음")
         return CarrierRecommendation(
             callId=call.call_id,
             route=f"{route.origin} → {route.destination}",
@@ -475,10 +584,54 @@ class MatchingEngine:
             netIncome=net_income,
             tags=tags,
             warning=warning,
-            score=self._score_carrier(carrier, route, empty_km, net_income, call.offered_fare_krw),
+            score=self._score_carrier(
+                carrier,
+                route,
+                empty_km,
+                net_income,
+                call.offered_fare_krw,
+                duration_hours=duration,
+                loading_at=call.loading_at,
+                preferred_region=preferred_region,
+                preferred_subregion=preferred_subregion,
+                max_empty_km=max_empty_km,
+                max_duration_hours=max_duration_hours,
+                preferred_loading_periods=preferred_loading_periods,
+                prioritize_income=prioritize_income,
+                prioritize_backhaul=prioritize_backhaul,
+                backhaul_available=backhaul_available,
+            ),
         )
 
-    def match_carrier(self, carrier_id: str, limit: int = 3) -> CarrierMatchesResponse:
+    @staticmethod
+    def _select_distinct_routes(
+        recommendations: list[CarrierRecommendation],
+        limit: int,
+    ) -> list[CarrierRecommendation]:
+        selected = []
+        seen_routes = set()
+        for recommendation in recommendations:
+            if recommendation.route in seen_routes:
+                continue
+            selected.append(recommendation)
+            seen_routes.add(recommendation.route)
+            if len(selected) == limit:
+                break
+        return selected
+
+    def match_carrier(
+        self,
+        carrier_id: str,
+        limit: int = 3,
+        *,
+        preferred_region: str | None = None,
+        preferred_subregion: str | None = None,
+        max_empty_km: int | None = None,
+        max_duration_hours: float | None = None,
+        preferred_loading_periods: frozenset[str] = frozenset(),
+        prioritize_income: bool = False,
+        prioritize_backhaul: bool = False,
+    ) -> CarrierMatchesResponse:
         snapshot = self.repository.snapshot()
         carrier = next((item for item in snapshot.carriers if item.carrier_id == carrier_id), None)
         if carrier is None:
@@ -487,22 +640,52 @@ class MatchingEngine:
         now = datetime.now(KST)
         upcoming_calls = [call for call in snapshot.calls if now <= call.loading_at <= now + timedelta(days=14)]
         candidate_calls = upcoming_calls if upcoming_calls else list(snapshot.calls)
+        return_regions = {carrier.garage_region, carrier.preferred_region}
+        backhaul_origin_regions = {
+            route.origin_region
+            for route in snapshot.routes.values()
+            if route.destination_region in return_regions
+        }
         for call in candidate_calls:
             route = snapshot.routes.get(call.route_id)
             if route is None:
                 continue
-            recommendation = self._call_recommendation(carrier, call, route)
+            recommendation = self._call_recommendation(
+                carrier,
+                call,
+                route,
+                preferred_region=preferred_region,
+                preferred_subregion=preferred_subregion,
+                max_empty_km=max_empty_km,
+                max_duration_hours=max_duration_hours,
+                preferred_loading_periods=preferred_loading_periods,
+                prioritize_income=prioritize_income,
+                prioritize_backhaul=prioritize_backhaul,
+                backhaul_available=route.destination_region in backhaul_origin_regions,
+            )
             if recommendation is not None:
                 recommendations.append(recommendation)
-        recommendations.sort(key=lambda item: (item.score, item.netIncome), reverse=True)
+        recommendations.sort(key=lambda item: (-item.score, -item.netIncome, item.loadingTime))
+        selected = self._select_distinct_routes(recommendations, limit)
+        preferences_applied = any((
+            preferred_region is not None,
+            preferred_subregion is not None,
+            max_empty_km is not None,
+            max_duration_hours is not None,
+            preferred_loading_periods,
+            prioritize_income,
+            prioritize_backhaul,
+        ))
         return CarrierMatchesResponse(
+            matchId=self._new_match_id(now),
             carrierId=carrier_id,
             generatedAt=now,
-            recommendations=recommendations[:limit],
+            recommendations=selected,
             predictionSources={
                 "score": "rule_based_v1",
                 "emptyDistanceKm": "carrier_history_estimate_v1",
                 "costs": "deterministic_cost_v1",
+                "preferences": "query_preference_weights_v1" if preferences_applied else "carrier_master_v1",
             },
             warnings=list(snapshot.warnings),
         )

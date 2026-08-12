@@ -34,10 +34,10 @@ Vercel 프로젝트의 환경 변수에 아래 두 값을 설정합니다. API �
 
 ```text
 GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-3.6-flash
+GEMINI_MODEL=gemini-flash-latest
 ```
 
-현재 Gemini API 지원 모델 기준으로 기본값은 `gemini-3.6-flash`입니다. 다른 Flash 모델을 사용할 때는 코드 수정 없이 `GEMINI_MODEL`만 변경할 수 있습니다.
+기본값은 현재 사용 가능한 Flash 세대를 가리키는 `gemini-flash-latest` 별칭입니다. 다른 Flash 모델을 사용할 때는 코드 수정 없이 `GEMINI_MODEL`만 변경할 수 있습니다.
 
 실제 FastAPI 예측 서버를 연결할 때는 프론트엔드에 공개 API 주소만 주입하고, 모델 키와 데이터베이스 자격증명은 Vercel 또는 백엔드 서버의 비밀 환경변수로 유지하세요.
 
@@ -67,5 +67,5 @@ GEMINI_MODEL=gemini-3.6-flash
 ### Vercel (frontend)
 - Root Directory: 저장소 루트
 - 빌드 설정: 루트 `vercel.json` 사용
-- 환경 변수: `GEMINI_API_KEY`, `GEMINI_MODEL=gemini-3.6-flash`
+- 환경 변수: `GEMINI_API_KEY`, `GEMINI_MODEL=gemini-flash-latest`
 - 이유: Gemini 호출 함수가 루트의 `api/insights.ts`에 있고, 키를 브라우저에 노출하지 않기 위해서입니다.

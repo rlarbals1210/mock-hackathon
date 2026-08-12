@@ -24,6 +24,9 @@
 - ISO 일시는 타임존을 포함한다. 예: `2026-08-13T17:30:00+09:00`
 - 예측값이 없을 때 `0`으로 대체하지 않고 `null`을 사용한다.
 - `predictionSources`를 통해 각 숫자가 학습 모델, 공급 풀 계산 또는 결정론적 비용 계산 중 어디에서 나왔는지 구분한다.
+- 서버는 기동 단계에서 엑셀 스냅샷과 모델 번들을 미리 읽는다. 따라서 `/api/health` 이후의 첫 매칭·카탈로그 요청에서 별도의 초기 로딩 시간이 발생하지 않는다.
+
+배차시간·비용·추천점수의 계산 근거와 MVP 가정은 [`model-assumptions.md`](model-assumptions.md)에 구분해 기록한다.
 
 ## 3. GET /api/v1/catalog/options
 
@@ -144,6 +147,7 @@ GET {VITE_API_URL}/api/v1/catalog/options?origin=부산신항&destination=김포
     "vehicleType": "11t카고",
     "allowCompatibleVehicle": true,
     "item": "철강재",
+    "cargoNote": null,
     "weightKg": 6072,
     "pallets": 6,
     "baseFare": 454000,
@@ -190,6 +194,7 @@ GET {VITE_API_URL}/api/v1/catalog/options?origin=부산신항&destination=김포
     "vehicleType": "11t카고",
     "allowCompatibleVehicle": false,
     "item": "철강재",
+    "cargoNote": "철강 코일, 파렛트 10개",
     "weightKg": 9500,
     "pallets": 10,
     "baseFare": 454000,
@@ -226,6 +231,7 @@ GET {VITE_API_URL}/api/v1/catalog/options?origin=부산신항&destination=김포
     "tonnage": 11,
     "bodyType": "카고",
     "item": "철강재",
+    "cargoNote": "철강 코일, 파렛트 10개",
     "weightKg": 9500
   },
   "current": {
@@ -381,18 +387,34 @@ GET {VITE_API_URL}/api/v1/catalog/options?origin=부산신항&destination=김포
 
 ## 5. GET /api/v1/matches/carrier/{carrier_id}
 
-운송인 한 명에게 추천할 콜 목록을 점수 내림차순으로 반환한다.
+운송인 한 명에게 추천할 콜 목록을 점수 내림차순으로 반환한다. 동일한 출발지·도착지 노선은 가장 높은 점수의 콜 한 건만 남기므로, 실제 적합 노선이 `limit`보다 적으면 더 적은 개수를 반환할 수 있다.
 
 선택 쿼리:
 
 - `limit`: 1~20, 기본값 3
+- `preferredRegion`: 선호 출발·도착 권역 문자열. 노선의 출발 또는 도착 권역이 일치하면 점수에 반영한다.
+- `preferredSubRegion`: 화면에서 고른 시·도 단위 세부 지역. v13 출발지명과 대응해 점수에 반영한다.
+- `maxEmptyKm`: 허용 공차거리(km), 0~1000
+- `maxDurationHours`: 허용 운행시간(시간), 0 초과 168 이하
+- `preferredLoadingPeriod`: `MORNING`, `AFTERNOON`, `NIGHT` 중 하나. 여러 값을 쓰려면 같은 쿼리를 반복한다.
+- `prioritizeIncome`: `true`이면 운임 대비 예상 실수령 비율을 선호점수에 반영한다.
+- `prioritizeBackhaul`: `true`이면 도착 권역에서 차고지 또는 기존 선호 권역으로 이어지는 노선 존재 여부를 선호점수에 반영한다.
+
+선호 쿼리는 모두 선택값이다. 하나라도 전달되면 기존 추천점수 75%와 사용자 선호 적합도 25%를 합산하며, 전달하지 않으면 기존 동작을 유지한다.
+
+```text
+GET {VITE_API_URL}/api/v1/matches/carrier/D00051?limit=3&preferredRegion=수도권&preferredSubRegion=경기&maxEmptyKm=30&maxDurationHours=8&preferredLoadingPeriod=MORNING&prioritizeIncome=true&prioritizeBackhaul=true
+```
 
 ### 응답 예시
 
+아래는 선택 쿼리를 생략한 기본 요청의 실제 응답이다. 선호 쿼리를 전달하면 `predictionSources.preferences`가 `query_preference_weights_v1`로 바뀌고, 적용된 조건이 각 추천의 `tags`에 추가된다.
+
 ```json
 {
+  "matchId": "M-20260812-000001",
   "carrierId": "D00051",
-  "generatedAt": "2026-08-12T16:40:12+09:00",
+  "generatedAt": "2026-08-12T19:13:10+09:00",
   "recommendations": [
     {
       "callId": "C2890",
@@ -409,38 +431,39 @@ GET {VITE_API_URL}/api/v1/catalog/options?origin=부산신항&destination=김포
       "score": 88
     },
     {
-      "callId": "C6197",
-      "route": "대전유성 → 이천",
-      "loadingTime": "2026-08-22T09:00:00+09:00",
-      "emptyDistanceKm": 11,
-      "durationHours": 3.3,
-      "fare": 234000,
-      "fuelCost": 77731,
-      "emptyCost": 11550,
-      "netIncome": 144719,
-      "tags": ["선호 권역 일치"],
+      "callId": "C4313",
+      "route": "의왕ICD → 안산",
+      "loadingTime": "2026-08-15T11:00:00+09:00",
+      "emptyDistanceKm": 18,
+      "durationHours": 2.2,
+      "fare": 159000,
+      "fuelCost": 23925,
+      "emptyCost": 18900,
+      "netIncome": 116175,
+      "tags": ["선호 권역 일치", "호환 차종"],
       "warning": null,
       "score": 88
     },
     {
-      "callId": "C6247",
-      "route": "대전유성 → 이천",
-      "loadingTime": "2026-08-24T12:00:00+09:00",
-      "emptyDistanceKm": 11,
-      "durationHours": 3.3,
-      "fare": 234000,
-      "fuelCost": 77731,
-      "emptyCost": 11550,
-      "netIncome": 144719,
-      "tags": ["선호 권역 일치"],
+      "callId": "C8904",
+      "route": "창원공단 → 평택",
+      "loadingTime": "2026-08-13T05:00:00+09:00",
+      "emptyDistanceKm": 6,
+      "durationHours": 5.5,
+      "fare": 406000,
+      "fuelCost": 179288,
+      "emptyCost": 6300,
+      "netIncome": 220412,
+      "tags": ["선호 권역 일치", "야간 운행 가능"],
       "warning": null,
-      "score": 88
+      "score": 87
     }
   ],
   "predictionSources": {
     "score": "rule_based_v1",
     "emptyDistanceKm": "carrier_history_estimate_v1",
-    "costs": "deterministic_cost_v1"
+    "costs": "deterministic_cost_v1",
+    "preferences": "carrier_master_v1"
   },
   "warnings": []
 }

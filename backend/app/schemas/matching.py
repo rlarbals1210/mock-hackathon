@@ -30,6 +30,8 @@ class CargoInput(ApiModel):
     vehicleType: str | None = Field(default=None, min_length=1, max_length=40)
     allowCompatibleVehicle: bool = False
     item: str = Field(min_length=1, max_length=80)
+    # 화면·생성형 설명용 메모다. 학습 모델 입력에는 사용하지 않는다.
+    cargoNote: str | None = Field(default=None, max_length=200)
     weightKg: int = Field(gt=0, le=25_000)
     pallets: int = Field(ge=1, le=100)
     baseFare: int = Field(gt=0, le=100_000_000)
@@ -117,6 +119,7 @@ class CargoSummary(ApiModel):
     tonnage: int
     bodyType: str
     item: str
+    cargoNote: str | None = None
     weightKg: int
 
 
@@ -150,6 +153,7 @@ class CarrierRecommendation(ApiModel):
 
 
 class CarrierMatchesResponse(ApiModel):
+    matchId: str
     carrierId: str
     generatedAt: datetime
     recommendations: list[CarrierRecommendation]

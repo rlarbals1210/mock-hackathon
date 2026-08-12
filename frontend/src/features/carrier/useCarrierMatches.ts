@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toCarrierCandidate, type CarrierCandidate } from '../../lib/adapters'
-import { ApiError, fetchCarrierMatches } from '../../lib/api'
+import { ApiError, fetchCarrierMatches, type CarrierMatchQuery } from '../../lib/api'
 import type { CarrierRecommendation, RouteOption } from '../../lib/types'
 
 /**
@@ -10,10 +10,37 @@ import type { CarrierRecommendation, RouteOption } from '../../lib/types'
  */
 export const demoCarrierId = 'D00051'
 
-// 추천은 점수 내림차순이라 같은 노선의 다른 날짜 콜이 연달아 나옵니다.
-// 노선이 다른 후보를 3건 확보하려고 넉넉히 받은 뒤 노선별로 최고 점수만 남깁니다.
-const fetchLimit = 20
+const fetchLimit = 3
 const candidateCount = 3
+
+export type CarrierMatchPreferenceInput = {
+  region: string
+  subRegion: string
+  time: string[]
+  priorities: string[]
+}
+
+const loadingPeriodByLabel: Record<string, 'MORNING' | 'AFTERNOON' | 'NIGHT'> = {
+  '오전 상차': 'MORNING',
+  '오후 상차': 'AFTERNOON',
+  '야간 상차': 'NIGHT',
+}
+
+function toMatchQuery(preferences: CarrierMatchPreferenceInput | null): CarrierMatchQuery {
+  if (!preferences) return {}
+  const preferredLoadingPeriod = preferences.time
+    .map((value) => loadingPeriodByLabel[value])
+    .filter((value): value is 'MORNING' | 'AFTERNOON' | 'NIGHT' => Boolean(value))
+  return {
+    preferredRegion: preferences.region,
+    preferredSubRegion: preferences.subRegion,
+    preferredLoadingPeriod,
+    maxEmptyKm: preferences.priorities.includes('공차 30km 이내') ? 30 : undefined,
+    maxDurationHours: preferences.priorities.includes('8시간 이내의 거리') ? 8 : undefined,
+    prioritizeIncome: preferences.priorities.includes('많은 수익'),
+    prioritizeBackhaul: preferences.priorities.includes('복화 가능성'),
+  }
+}
 
 export type CarrierCall = CarrierCandidate & {
   /** 적재 구간 거리(km)입니다. 카탈로그 노선표에서 찾습니다. 못 찾으면 0입니다. */
@@ -35,17 +62,12 @@ export type CarrierMatchesState = {
   retry: () => void
 }
 
-function dedupeByRoute(calls: CarrierCall[]) {
-  const best = new Map<string, CarrierCall>()
-  for (const call of calls) {
-    const current = best.get(call.route)
-    if (!current || call.score > current.score) best.set(call.route, call)
-  }
-  return [...best.values()].sort((left, right) => right.score - left.score)
-}
-
 /** 운송인 한 명에게 추천할 콜을 가져옵니다. */
-export function useCarrierMatches(routes: RouteOption[] | undefined, carrierId = demoCarrierId): CarrierMatchesState {
+export function useCarrierMatches(
+  routes: RouteOption[] | undefined,
+  preferences: CarrierMatchPreferenceInput | null,
+  carrierId = demoCarrierId,
+): CarrierMatchesState {
   const [status, setStatus] = useState<CarrierMatchesState['status']>('loading')
   const [raw, setRaw] = useState<CarrierCall[]>([])
   const [message, setMessage] = useState('')
@@ -53,6 +75,7 @@ export function useCarrierMatches(routes: RouteOption[] | undefined, carrierId =
   const [attempt, setAttempt] = useState(0)
 
   const retry = useCallback(() => setAttempt((current) => current + 1), [])
+  const matchQuery = useMemo(() => toMatchQuery(preferences), [preferences])
 
   const distanceByRoute = useMemo(() => {
     const table = new Map<string, number>()
@@ -65,7 +88,7 @@ export function useCarrierMatches(routes: RouteOption[] | undefined, carrierId =
     setStatus('loading')
     setMessage('')
 
-    fetchCarrierMatches(carrierId, fetchLimit, controller.signal)
+    fetchCarrierMatches(carrierId, fetchLimit, matchQuery, controller.signal)
       .then((response) => {
         if (controller.signal.aborted) return
         setRaw(response.recommendations.map((recommendation, index) => ({
@@ -74,7 +97,7 @@ export function useCarrierMatches(routes: RouteOption[] | undefined, carrierId =
           source: recommendation,
           predictionSources: response.predictionSources,
         })))
-        setMatchId(`carrier-${response.carrierId}-${response.generatedAt}`)
+        setMatchId(response.matchId)
         setStatus('ready')
       })
       .catch((error: unknown) => {
@@ -84,13 +107,13 @@ export function useCarrierMatches(routes: RouteOption[] | undefined, carrierId =
       })
 
     return () => controller.abort()
-  }, [attempt, carrierId])
+  }, [attempt, carrierId, matchQuery])
 
   const board = useMemo(
     () => raw.map((call) => ({ ...call, distanceKm: distanceByRoute.get(call.route) ?? 0 })),
     [distanceByRoute, raw],
   )
-  const calls = useMemo(() => dedupeByRoute(board).slice(0, candidateCount), [board])
+  const calls = useMemo(() => board.slice(0, candidateCount), [board])
 
   return { status, calls, board, message, matchId, retry }
 }

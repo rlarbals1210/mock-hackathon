@@ -11,7 +11,7 @@ from app.schemas.matching import (
 )
 from app.services.feedback_store import FeedbackStore
 from app.services.catalog_service import CatalogService
-from app.services.matching_engine import MatchingEngine
+from app.services.matching_engine import InvalidMatchRequestError, MatchingEngine
 
 router = APIRouter()
 
@@ -66,9 +66,33 @@ def match_shipper(
 def match_carrier(
     carrier_id: str,
     limit: int = Query(default=3, ge=1, le=20),
+    preferred_region: str | None = Query(default=None, alias="preferredRegion", min_length=1, max_length=40),
+    preferred_subregion: str | None = Query(default=None, alias="preferredSubRegion", min_length=1, max_length=40),
+    max_empty_km: int | None = Query(default=None, alias="maxEmptyKm", ge=0, le=1_000),
+    max_duration_hours: float | None = Query(default=None, alias="maxDurationHours", gt=0, le=168),
+    preferred_loading_period: list[str] | None = Query(default=None, alias="preferredLoadingPeriod"),
+    prioritize_income: bool = Query(default=False, alias="prioritizeIncome"),
+    prioritize_backhaul: bool = Query(default=False, alias="prioritizeBackhaul"),
     engine: MatchingEngine = Depends(get_matching_engine),
 ) -> CarrierMatchesResponse:
-    return engine.match_carrier(carrier_id, limit)
+    allowed_periods = {"MORNING", "AFTERNOON", "NIGHT"}
+    periods = frozenset(preferred_loading_period or [])
+    unknown_periods = sorted(periods.difference(allowed_periods))
+    if unknown_periods:
+        raise InvalidMatchRequestError(
+            "preferredLoadingPeriod는 MORNING, AFTERNOON, NIGHT만 사용할 수 있습니다."
+        )
+    return engine.match_carrier(
+        carrier_id,
+        limit,
+        preferred_region=preferred_region,
+        preferred_subregion=preferred_subregion,
+        max_empty_km=max_empty_km,
+        max_duration_hours=max_duration_hours,
+        preferred_loading_periods=periods,
+        prioritize_income=prioritize_income,
+        prioritize_backhaul=prioritize_backhaul,
+    )
 
 
 @router.post("/v1/matches/feedback", response_model=FeedbackResponse)

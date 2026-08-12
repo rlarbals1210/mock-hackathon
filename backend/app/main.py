@@ -1,14 +1,26 @@
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.dependencies import warmup_matching_services
 from app.api.routes import router
 from app.core.config import settings
 from app.services.data_repository import DataNotReadyError
 from app.services.matching_engine import CarrierNotFoundError, InvalidMatchRequestError, RouteNotFoundError
 
-app = FastAPI(title=settings.app_name)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 엑셀 파싱과 joblib 역직렬화를 기동 단계에서 끝내 첫 사용자 요청의
+    # 6초 콜드스타트를 제거한다. 데이터가 필수인 배포에서는 실패를 조기에 드러낸다.
+    app.state.matching_warmup = await asyncio.to_thread(warmup_matching_services)
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

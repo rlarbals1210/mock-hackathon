@@ -132,6 +132,7 @@ export function buildShipperRequest(
     vehicleType: vehicle.vehicleType,
     allowCompatibleVehicle: levers.vehicleFlexible,
     item: cargo.item,
+    cargoNote: cargo.cargoDescription.trim() || undefined,
     weightKg: Math.round(weightKg),
     pallets: defaultPallets,
     baseFare,

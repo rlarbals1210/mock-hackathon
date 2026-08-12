@@ -45,6 +45,7 @@ FastAPI와 Vercel 함수의 오리진이 다르다. 앞의 네 호출은 `fronte
 4. 새 응답에서 `selectionValid === false`이면 바뀐 필드보다 하위의 선택값을 지운다. 가능한 대안은 해당 배열에 남아 있다.
 5. `routes`가 한 건이면 그 항목의 `routeId`, 권역, `baseFareByTonnage[tonnage]`을 매칭 요청에 사용한다.
 6. MVP의 빠른 시험 버튼은 `sampleCargo`를 폼에 채우면 된다. 이 객체는 실제 엑셀 행이며 그대로 화주 매칭 API의 `cargo`가 된다.
+7. 사용자가 입력한 품목 상세는 `cargo.cargoNote`에 최대 200자로 보낸다. 이 값은 모델 계산에는 사용하지 않고 화면과 생성형 설명의 문맥으로만 사용한다.
 
 카탈로그는 전체 엑셀값의 단순 합집합이 아니라 현재 선택과 함께 실제 콜에 존재하는 조합만 반환한다. 예를 들어 부산신항을 고르면 해당 출발지에서 실제로 연결된 도착지만 표시된다.
 
@@ -74,7 +75,17 @@ FastAPI와 Vercel 함수의 오리진이 다르다. 앞의 네 호출은 `fronte
 
 ## 5. 운송인 화면 연결
 
-`GET /api/v1/matches/carrier/{carrierId}?limit=5`의 `recommendations`를 사용한다. 현재 프론트의 만원 단위 필드는 제거하고 API의 원 단위 정수를 보관한 뒤 표시할 때만 만원으로 환산한다.
+`GET /api/v1/matches/carrier/{carrierId}?limit=3`의 `recommendations`를 사용한다. 백엔드가 같은 노선을 제거하므로 `limit=20`으로 받은 뒤 프론트에서 중복을 제거하는 우회는 필요 없다. 현재 프론트의 만원 단위 필드는 제거하고 API의 원 단위 정수를 보관한 뒤 표시할 때만 만원으로 환산한다.
+
+화면의 선호 조건은 선택된 값만 쿼리로 전달한다.
+
+- `preferredRegion`: 선호 권역
+- `preferredSubRegion`: 선호 세부 지역
+- `maxEmptyKm`: 최대 공차거리(km)
+- `maxDurationHours`: 최대 운행시간(시간)
+- `preferredLoadingPeriod`: `MORNING`, `AFTERNOON`, `NIGHT`; 여러 개면 쿼리 키를 반복
+- `prioritizeIncome`: 많은 수익 우선 선택 시 `true`
+- `prioritizeBackhaul`: 복화 가능성 선택 시 `true`
 
 - `Candidate.id` ← `callId`로 타입 변경
 - `time` ← `loadingTime`
@@ -82,6 +93,7 @@ FastAPI와 Vercel 함수의 오리진이 다르다. 앞의 네 호출은 `fronte
 - `duration` ← `durationHours`
 - `fare`, `fuelCost`, `emptyCost`, `net` ← 각각 `fare`, `fuelCost`, `emptyCost`, `netIncome`
 - 추천 순위는 배열 순서, 추천 라벨은 `score` 최고값에 표시
+- 피드백의 `matchId` ← 운송인 응답 최상위의 `matchId`; 프론트에서 임의 문자열을 만들지 않는다.
 
 현재 백엔드는 다음 콜 추천까지 제공하지만 진짜 복화 연결 최적화 모델은 아니다. 따라서 `backhaulOffers`를 교체할 때 화면 문구는 “다음 추천 콜”로 표시하고 “복화 최적 경로”라고 단정하지 않는다.
 
@@ -154,6 +166,7 @@ Gemini 프롬프트 규칙:
 2. 실제 모드에서 카탈로그 초기 호출이 10개 출발지, 10개 도착지, 15개 차종, 11개 품목을 반환한다.
 3. `부산신항 / 김포 / 11 / 카고 / 11t카고 / 철강재` 선택 시 `matchedCallCount`가 21이고 `routeId`가 `R01`이다.
 4. `sampleCargo`로 화주 매칭을 호출했을 때 여러 시간창과 추천 운송인이 표시된다.
-5. 운송인 ID `D00051`의 추천 콜이 원 단위로 표시된다.
-6. Gemini 키가 있으면 AI 문장, 키가 없거나 호출 실패면 숫자를 유지한 fallback 문장이 표시된다.
-7. AI 문장 속 모든 숫자가 FastAPI 응답 또는 `differences`에 실제로 존재한다.
+5. 운송인 ID `D00051`의 추천 콜이 서로 다른 노선으로, 원 단위로 표시된다.
+6. 운송인 선호 조건을 바꾸면 쿼리 파라미터와 추천 점수·태그가 함께 바뀐다.
+7. Gemini 키가 있으면 AI 문장, 키가 없거나 호출 실패면 숫자를 유지한 fallback 문장이 표시된다.
+8. AI 문장 속 모든 숫자가 FastAPI 응답 또는 `differences`에 실제로 존재한다.

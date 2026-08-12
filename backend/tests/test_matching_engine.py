@@ -101,6 +101,26 @@ def test_carrier_response_uses_krw_and_expected_fields(engine):
         assert 0 <= result.score <= 100
 
 
+def test_carrier_subregion_and_backhaul_preferences_are_applied(engine):
+    snapshot = engine.repository.snapshot()
+    carrier = next(item for item in snapshot.carriers if item.carrier_id == "D07980")
+    call = next(item for item in snapshot.calls if item.route_id == "R01")
+    route = snapshot.routes[call.route_id]
+
+    recommendation = engine._call_recommendation(
+        carrier,
+        call,
+        route,
+        preferred_subregion="부산",
+        prioritize_backhaul=True,
+        backhaul_available=True,
+    )
+
+    assert recommendation is not None
+    assert "설정한 세부 지역 일치" in recommendation.tags
+    assert "복화 후보 노선 있음" in recommendation.tags
+
+
 def test_unknown_carrier_raises(engine):
     with pytest.raises(CarrierNotFoundError):
         engine.match_carrier("D-NOT-FOUND")

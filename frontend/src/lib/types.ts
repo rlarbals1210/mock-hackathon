@@ -28,6 +28,8 @@ export type CargoInput = {
   vehicleType?: string
   allowCompatibleVehicle?: boolean
   item: string
+  /** 화면과 자연어 설명에만 쓰며 모델 입력에는 포함되지 않습니다. */
+  cargoNote?: string | null
   /** 0 초과, tonnage * 1000 이하 */
   weightKg: number
   /** 1~100 */
@@ -97,6 +99,7 @@ export type CargoSummary = {
   tonnage: number
   bodyType: string
   item: string
+  cargoNote: string | null
   weightKg: number
 }
 
@@ -130,6 +133,7 @@ export type CarrierRecommendation = {
 }
 
 export type CarrierMatchesResponse = {
+  matchId: string
   carrierId: string
   generatedAt: string
   recommendations: CarrierRecommendation[]

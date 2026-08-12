@@ -17,8 +17,8 @@ export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 /** 1이면 네트워크 없이 lib/mock.ts의 고정 응답을 씁니다. */
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
 
-// 매칭 서버는 첫 요청에서 생성 데이터와 학습 모델을 읽어 약 6초가 걸리고,
-// 이후 요청은 0.1초 안에 끝납니다. 첫 요청이 잘리지 않도록 넉넉히 둡니다.
+// 서버가 기동 중에 데이터와 모델을 미리 읽지만, Railway 프로세스 자체의
+// 콜드 부팅까지 고려해 네트워크 제한시간은 넉넉히 둡니다.
 const requestTimeoutMs = 15_000
 const mockLatencyMs = 180
 // 생성형 설명은 없어도 화면이 성립하므로 짧게 자릅니다.
@@ -130,10 +130,33 @@ export function requestShipperMatch(body: ShipperMatchRequest, signal?: AbortSig
   )
 }
 
-export function fetchCarrierMatches(carrierId: string, limit = 3, signal?: AbortSignal): Promise<CarrierMatchesResponse> {
+export type CarrierMatchQuery = {
+  preferredRegion?: string
+  preferredSubRegion?: string
+  maxEmptyKm?: number
+  maxDurationHours?: number
+  preferredLoadingPeriod?: ('MORNING' | 'AFTERNOON' | 'NIGHT')[]
+  prioritizeIncome?: boolean
+  prioritizeBackhaul?: boolean
+}
+
+export function fetchCarrierMatches(
+  carrierId: string,
+  limit = 3,
+  preferences: CarrierMatchQuery = {},
+  signal?: AbortSignal,
+): Promise<CarrierMatchesResponse> {
   if (USE_MOCK) return delay(mockCarrierMatches(carrierId, limit), signal)
+  const query = new URLSearchParams({ limit: String(limit) })
+  for (const [key, value] of Object.entries(preferences)) {
+    if (Array.isArray(value)) {
+      for (const item of value) query.append(key, item)
+    } else if (value !== null && value !== undefined && value !== false && value !== '') {
+      query.set(key, String(value))
+    }
+  }
   return request<CarrierMatchesResponse>(
-    `/api/v1/matches/carrier/${encodeURIComponent(carrierId)}?limit=${limit}`,
+    `/api/v1/matches/carrier/${encodeURIComponent(carrierId)}?${query.toString()}`,
     { method: 'GET' },
     signal,
   )
@@ -178,8 +201,8 @@ export async function requestInsight(body: InsightRequest, signal?: AbortSignal)
 }
 
 /**
- * 배포 직후 첫 요청이 약 6초 걸리는 것을 피하기 위한 사전 예열입니다.
- * /api/health는 엑셀을 읽지 않아 예열되지 않으므로 카탈로그를 호출합니다. 실패해도 무시합니다.
+ * 배포 서비스의 휴면 프로세스를 미리 깨우고 카탈로그를 받아두기 위한 호출입니다.
+ * 백엔드 내부 데이터·모델 예열은 FastAPI 기동 단계에서 별도로 끝납니다.
  */
 export function warmUpApi() {
   if (USE_MOCK) return

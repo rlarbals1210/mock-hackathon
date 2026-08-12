@@ -617,7 +617,7 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
   const [pendingCallId, setPendingCallId] = useState<string | null>(null)
 
   const catalog = useCatalogOptions()
-  const matches = useCarrierMatches(catalog.data?.routes)
+  const matches = useCarrierMatches(catalog.data?.routes, preferences)
   const usingServer = matches.status === 'ready' && matches.calls.length > 0
   const calls = usingServer ? matches.calls : fallbackCalls
   const board = usingServer ? matches.board : fallbackCalls

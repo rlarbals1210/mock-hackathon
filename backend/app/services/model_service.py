@@ -7,6 +7,8 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from app.services.assumptions import DISPATCH_CURVE_EXPONENT, DISPATCH_CURVE_SCALE
+
 
 @dataclass(frozen=True)
 class ScenarioModelResult:
@@ -46,6 +48,10 @@ class MatchingModelService:
     def has_model_b(self) -> bool:
         self._load()
         return self._model_b is not None
+
+    def warmup(self) -> None:
+        """Load and validate both model bundles during application startup."""
+        self._load()
 
     def _load(self) -> None:
         with self._lock:
@@ -191,7 +197,7 @@ class MatchingModelService:
 
             bundle = self._model_a
             current_candidates = max(int(context["current_candidate_count"]), 1)
-            baseline_dispatch = 266 / current_candidates ** 0.354
+            baseline_dispatch = DISPATCH_CURVE_SCALE / current_candidates ** DISPATCH_CURVE_EXPONENT
             row = {
                 "시간창_분": context["current_window_minutes"],
                 "리드타임_h": context["lead_time_hours"],

@@ -147,6 +147,7 @@ export function mockShipperMatch(request: ShipperMatchRequest): ShipperMatchResp
       tonnage: cargo.tonnage,
       bodyType: cargo.bodyType,
       item: cargo.item,
+      cargoNote: cargo.cargoNote ?? null,
       weightKg: cargo.weightKg,
     },
     current,
@@ -174,6 +175,7 @@ const mockCarrierCalls = [
 
 export function mockCarrierMatches(carrierId: string, limit: number): CarrierMatchesResponse {
   return {
+    matchId: `M-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-MOCK01`,
     carrierId,
     generatedAt: new Date().toISOString(),
     recommendations: mockCarrierCalls.slice(0, limit),
