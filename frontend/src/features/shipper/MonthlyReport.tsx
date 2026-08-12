@@ -125,7 +125,7 @@ export function MonthlyReport({ cargo, choice, adjustedHours, operations }: Mont
 
       <section className="report-bottom-grid">
         <article className="recent-choice panel-v3"><div className="section-heading-v3"><Icon name="compare" /><div><h2>최근 선택 결과</h2><p>응답 상태는 외부 연결 없이 수동 상태로 표시</p></div></div><dl>{statusRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><div className="recent-choice__carbon"><Icon name="leaf" size={18} /><span>이번 콜 탄소 참고</span><strong>{carbon.value}kgCO₂e/건</strong><small>{carbon.scope}</small></div></article>
-        <article className="operation-log panel-v3"><div className="section-heading-v3"><Icon name="clock" /><div><h2>최근 운영 기록</h2><p>브라우저에 저장된 데모 작업</p></div></div><ol>{operations.length ? operations.slice(0, 5).map((operation) => <li key={operation.id}><time>{operation.time}</time><div><strong>{operation.title}</strong><span>{operation.detail}</span></div></li>) : <li className="is-empty"><span>아직 저장된 운영 기록이 없습니다.</span></li>}</ol></article>
+        <article className="operation-log pdf-hide-recent-operations panel-v3"><div className="section-heading-v3"><Icon name="clock" /><div><h2>최근 운영 기록</h2><p>브라우저에 저장된 데모 작업</p></div></div><ol>{operations.length ? operations.slice(0, 5).map((operation) => <li key={operation.id}><time>{operation.time}</time><div><strong>{operation.title}</strong><span>{operation.detail}</span></div></li>) : <li className="is-empty"><span>아직 저장된 운영 기록이 없습니다.</span></li>}</ol></article>
       </section>
 
       {showReport && (
