@@ -29,3 +29,5 @@ ai/models/*.pkl
 ai/models/*.pt
 ai/models/*.onnx
 !ai/models/.gitkeep
+.vercel
+.env*
