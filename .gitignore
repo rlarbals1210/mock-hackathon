@@ -18,6 +18,9 @@ venv/
 # OS
 .DS_Store
 
+# Editor (local-only)
+.vscode/
+
 # AI artifacts
 ai/data/*
 !ai/data/.gitkeep
