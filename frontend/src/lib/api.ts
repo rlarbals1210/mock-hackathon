@@ -6,6 +6,8 @@ import type {
   CatalogOptionsResponse,
   FeedbackRequest,
   FeedbackResponse,
+  InsightRequest,
+  InsightResponse,
   ShipperMatchRequest,
   ShipperMatchResponse,
 } from './types'
@@ -19,6 +21,8 @@ export const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
 // 이후 요청은 0.1초 안에 끝납니다. 첫 요청이 잘리지 않도록 넉넉히 둡니다.
 const requestTimeoutMs = 15_000
 const mockLatencyMs = 180
+// 생성형 설명은 없어도 화면이 성립하므로 짧게 자릅니다.
+const insightTimeoutMs = 7_000
 
 export class ApiError extends Error {
   readonly status: number
@@ -142,6 +146,35 @@ export function sendFeedback(body: FeedbackRequest, signal?: AbortSignal): Promi
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
     signal,
   )
+}
+
+/**
+ * 자연어 설명을 요청합니다. 이 함수는 매칭 API가 아니라 같은 오리진의 Vercel 서버 함수를 부릅니다.
+ * 실패하거나 생성 문장이 검증에 걸리면 null을 돌려주고, 화면은 확정된 사실 문장을 그대로 씁니다.
+ */
+export async function requestInsight(body: InsightRequest, signal?: AbortSignal): Promise<string | null> {
+  const controller = new AbortController()
+  const timer = window.setTimeout(() => controller.abort(), insightTimeoutMs)
+  const onAbort = () => controller.abort()
+  signal?.addEventListener('abort', onAbort)
+
+  try {
+    const response = await fetch('/api/insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+    if (!response.ok) return null
+    const payload = await response.json() as InsightResponse
+    if (payload.rejected || !payload.text) return null
+    return payload.text
+  } catch {
+    return null
+  } finally {
+    window.clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../../components/Icon'
 import { comparisonWindowMinutes, pickScenario, scenarioToPrediction } from '../../lib/adapters'
-import type { CatalogOptionsResponse } from '../../lib/types'
+import type { CatalogOptionsResponse, ShipperInsightFacts } from '../../lib/types'
 import { useShipperMatch } from './useShipperMatch'
 import {
   cargoIsComplete,
@@ -28,7 +28,7 @@ import {
 type ConditionComparisonProps = {
   cargo: CargoForm
   choice: DecisionChoice
-  onChoose: (choice: Exclude<DecisionChoice, null>, levers: LeverState) => void
+  onChoose: (choice: Exclude<DecisionChoice, null>, levers: LeverState, facts: ShipperInsightFacts | null) => void
   onOpenRegistration: () => void
   catalog: CatalogOptionsResponse | null
 }
@@ -134,6 +134,28 @@ export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistratio
       : blocked
         ? { kind: 'local' as const, message: `${blocked.message} 아래 수치는 원자료 기반 참고값입니다.` }
         : { kind: 'local' as const, message: `${failed?.message ?? '예측 서버에 연결하지 못했습니다.'} 아래 수치는 원자료 기반 참고값입니다.` }
+
+  /**
+   * 사용자가 조건을 확정하는 순간의 매칭 사실을 그대로 담습니다.
+   * 리포트 화면과 생성형 설명은 이 값만 쓰고 숫자를 다시 계산하지 않습니다.
+   */
+  const buildInsightFacts = (picked: Exclude<DecisionChoice, null>): ShipperInsightFacts | null => {
+    const source = adjustedMatch.data
+    const baseline = baselineMatch.data
+    if (!source || !baseline) return null
+    const selectedScenario = picked === 'adjusted' ? adjustedScenario ?? baseline.current : baseline.current
+    return {
+      requestId: source.requestId,
+      matchId: source.matchId,
+      cargo: source.cargo,
+      current: baseline.current,
+      selectedScenario,
+      recommendation: source.recommendations[0] ?? null,
+      explanationFacts: source.explanationFacts,
+      predictionSources: source.predictionSources,
+      warnings: source.warnings,
+    }
+  }
 
   const driverDelta = adjustedPrediction.candidates - currentPrediction.candidates
   const fareDelta = adjustedPrediction.fare - currentPrediction.fare
@@ -285,7 +307,7 @@ export function ConditionComparison({ cargo, choice, onChoose, onOpenRegistratio
               <button className={dialogChoice === 'current' ? 'is-selected' : ''} onClick={() => setDialogChoice('current')} type="button"><span>현재 조건 그대로</span><strong>{currentPrediction.candidates.toLocaleString('ko-KR')}명 · {formatCurrency(currentPrediction.fare)} · {currentPrediction.dispatchMinutes}분 · 유찰 {formatRisk(currentPrediction.failureProbability)}</strong></button>
               <button className={dialogChoice === 'adjusted' ? 'is-selected' : ''} disabled={!appliedLevers.length} onClick={() => setDialogChoice('adjusted')} type="button"><span>조정안 사용{appliedLevers.length ? ` (${appliedLevers.join(' · ')})` : ''}</span><strong>{adjustedPrediction.candidates.toLocaleString('ko-KR')}명 · {formatCurrency(adjustedPrediction.fare)} · {adjustedPrediction.dispatchMinutes}분 · 유찰 {formatRisk(adjustedPrediction.failureProbability)}</strong></button>
             </div>
-            <button className="primary-v3 dialog-confirm" onClick={() => { onChoose(dialogChoice, dialogChoice === 'adjusted' ? levers : currentLevers); setDialogChoice(null) }} type="button">{dialogChoice === 'adjusted' ? '조정안으로 등록' : '현재 조건대로 등록'} <Icon name="chevron" size={18} /></button>
+            <button className="primary-v3 dialog-confirm" onClick={() => { onChoose(dialogChoice, dialogChoice === 'adjusted' ? levers : currentLevers, buildInsightFacts(dialogChoice)); setDialogChoice(null) }} type="button">{dialogChoice === 'adjusted' ? '조정안으로 등록' : '현재 조건대로 등록'} <Icon name="chevron" size={18} /></button>
           </section>
         </div>
       )}

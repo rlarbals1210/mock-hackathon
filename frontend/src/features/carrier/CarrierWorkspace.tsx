@@ -1,8 +1,37 @@
 import { useEffect, useState } from 'react'
 import { CustomOverlayMap, Map, MapMarker, Polyline, useKakaoLoader } from 'react-kakao-maps-sdk'
 import { Icon } from '../../components/Icon'
-import { backhaulOffers, candidates, cityCoords, orders, virtualCarrierProfile, type BackhaulOffer, type Candidate } from '../../data'
+import { backhaulOffers, candidates, cityCoords, orders, virtualCarrierProfile, type Candidate } from '../../data'
+import { requestInsight, sendFeedback } from '../../lib/api'
+import { useCatalogOptions } from '../shipper/useCatalogOptions'
 import { carrierStageLabels, type CarrierStage, type NotificationKind } from './flow'
+import { demoCarrierId, useCarrierMatches, type CarrierCall } from './useCarrierMatches'
+
+// 추천 콜 API를 쓸 수 없을 때만 쓰는 기존 데모 데이터입니다.
+const fallbackCalls: CarrierCall[] = candidates.map((candidate) => ({
+  ...candidate,
+  callId: `demo-${candidate.id}`,
+  score: 90 - candidate.id * 2,
+  distanceKm: orders.find((order) => order.route === candidate.route)?.distance ?? 0,
+  predictionSources: {},
+}))
+
+const fallbackBackhaul: CarrierCall[] = backhaulOffers.map((offer, index) => ({
+  id: 100 + index,
+  callId: `demo-backhaul-${offer.id}`,
+  score: 80,
+  route: offer.route,
+  time: offer.time,
+  emptyKm: offer.emptyKm,
+  duration: offer.duration,
+  fare: offer.fare,
+  fuelCost: 0,
+  emptyCost: 0,
+  net: offer.net,
+  tags: offer.tags,
+  distanceKm: offer.distance,
+  predictionSources: {},
+}))
 
 function useLiveClock() {
   const [now, setNow] = useState(() => new Date())
@@ -181,29 +210,30 @@ function PreferenceSetupScreen({ onNext }: { onNext: (preferences: CarrierPrefer
   )
 }
 
-function OrderBoardScreen({ scanning, preferences }: { scanning: boolean; preferences: CarrierPreferences | null }) {
+function OrderBoardScreen({ scanning, preferences, board, status }: { scanning: boolean; preferences: CarrierPreferences | null; board: CarrierCall[]; status: 'loading' | 'ready' | 'error' }) {
   const preferredOrigin = preferences?.subRegion ?? null
   return (
     <div className="carrier-scroll carrier-home">
       <div className="simple-screen-heading">
         <span className="icon-box icon-box--yellow"><Icon name="dashboard" /></span>
-        <div><h2>오더 게시판</h2><p>지금 열려 있는 화주 오더입니다.</p></div>
+        <div><h2>오더 게시판</h2><p>{status === 'ready' ? '지금 열려 있는 화주 오더입니다.' : '기본 예시 오더를 표시하고 있어요.'}</p></div>
       </div>
-      {scanning && (
+      {status === 'loading' && <div className="carrier-scanning" role="status"><i /> 오더를 불러오는 중이에요</div>}
+      {status !== 'loading' && scanning && (
         <div className="carrier-scanning" role="status">
           <i /> AI가 선호 조건에 맞는 콜을 찾는 중이에요
         </div>
       )}
       <div className="order-list">
-        {orders.map((order) => {
-          const matchesPreference = preferredOrigin ? order.route.startsWith(preferredOrigin) : false
+        {board.map((call) => {
+          const matchesPreference = preferredOrigin ? call.route.startsWith(preferredOrigin) : false
           return (
-            <article className={`order-card${matchesPreference ? ' is-preferred' : ''}`} key={order.id}>
+            <article className={`order-card${matchesPreference ? ' is-preferred' : ''}`} key={call.callId}>
               <div className="order-card-head">
-                <strong>{order.route}</strong>
-                <b>{order.price}만원</b>
+                <strong>{call.route}</strong>
+                <b>{call.fare}만원</b>
               </div>
-              <small>{order.cargo} · {order.weight} · {order.loadTime} · {order.distance}km</small>
+              <small>{call.time} 상차 · 공차 {call.emptyKm}km · {call.duration}시간{call.distanceKm ? ` · ${call.distanceKm}km` : ''}</small>
               {matchesPreference && <span className="candidate-tags"><em>선호 지역</em></span>}
             </article>
           )
@@ -245,8 +275,46 @@ function formatDiff(value: number, unit: string, decimals: number) {
   return `${value > 0 ? '+' : ''}${value.toFixed(decimals)}${unit}`
 }
 
-function CandidateComparisonPanel({ candidate, baseline }: { candidate: Candidate; baseline: Candidate }) {
+function CandidateComparisonPanel({ candidate, baseline, carrierId }: { candidate: CarrierCall; baseline: CarrierCall; carrierId: string }) {
   const diff = compareCandidates(candidate, baseline)
+  const template = buildComparisonSummary(diff)
+  const [summary, setSummary] = useState(template)
+  const [fromAi, setFromAi] = useState(false)
+
+  useEffect(() => {
+    setSummary(template)
+    setFromAi(false)
+    if (!candidate.source || !baseline.source) return
+    const controller = new AbortController()
+    requestInsight({
+      schemaVersion: 'match-insight-v1',
+      audience: 'CARRIER',
+      intent: 'CANDIDATE_COMPARISON',
+      facts: {
+        carrierId,
+        baseline: baseline.source,
+        selected: candidate.source,
+        // 계약상 프론트가 계산해도 되는 유일한 값입니다. selected - baseline의 단순 뺄셈입니다.
+        differences: {
+          fare: candidate.source.fare - baseline.source.fare,
+          fuelCost: candidate.source.fuelCost - baseline.source.fuelCost,
+          emptyCost: candidate.source.emptyCost - baseline.source.emptyCost,
+          netIncome: candidate.source.netIncome - baseline.source.netIncome,
+          durationHours: Math.round((candidate.source.durationHours - baseline.source.durationHours) * 10) / 10,
+          emptyDistanceKm: candidate.source.emptyDistanceKm - baseline.source.emptyDistanceKm,
+        },
+        predictionSources: candidate.predictionSources,
+        warnings: [],
+      },
+    }, controller.signal)
+      .then((text) => {
+        if (controller.signal.aborted || !text) return
+        setSummary(text)
+        setFromAi(true)
+      })
+    return () => controller.abort()
+  }, [baseline, candidate, carrierId, template])
+
   const rows: { label: string; value: number; unit: string; decimals: number; emphasis?: boolean }[] = [
     { label: '운행비', value: diff.costDiff, unit: '만원', decimals: 1 },
     { label: '운행시간', value: diff.durationDiff, unit: '시간', decimals: 0 },
@@ -271,38 +339,58 @@ function CandidateComparisonPanel({ candidate, baseline }: { candidate: Candidat
           </div>
         ))}
       </div>
-      <p className="candidate-compare-summary">{buildComparisonSummary(diff)}</p>
+      <p className="candidate-compare-summary">{summary}</p>
+      {fromAi && <small className="candidate-compare-source">생성형 AI · 위 비교값만 사용</small>}
     </section>
   )
 }
 
-function CandidateSelectScreen({ onConfirm }: { onConfirm: (candidate: Candidate) => void }) {
-  const [selected, setSelected] = useState(1)
-  const recommendedCandidate = candidates[0]
-  const selectedCandidate = candidates.find((candidate) => candidate.id === selected) ?? recommendedCandidate
-  const isComparingAlternative = selectedCandidate.id !== recommendedCandidate.id
+function CandidateSelectScreen({ calls, status, message, onRetry, onConfirm }: { calls: CarrierCall[]; status: 'loading' | 'ready' | 'error'; message: string; onRetry: () => void; onConfirm: (candidate: CarrierCall) => void }) {
+  const recommendedCandidate = calls[0]
+  const [selected, setSelected] = useState(recommendedCandidate?.id ?? 1)
+  const selectedCandidate = calls.find((candidate) => candidate.id === selected) ?? recommendedCandidate
+  const isComparingAlternative = Boolean(recommendedCandidate) && selectedCandidate.id !== recommendedCandidate.id
+
+  if (status === 'loading') {
+    return (
+      <div className="carrier-scroll candidate-screen">
+        <section className="safety-brief"><span><Icon name="clock" size={25} /></span><div><strong>추천 콜을 계산하고 있어요</strong><p>공차거리와 예상 실수령을 비교하는 중입니다</p></div></section>
+        <div className="carrier-scanning" role="status"><i /> 잠시만 기다려 주세요</div>
+      </div>
+    )
+  }
+
+  if (!recommendedCandidate) {
+    return (
+      <div className="carrier-scroll candidate-screen">
+        <section className="safety-brief"><span><Icon name="shield" size={25} /></span><div><strong>추천할 콜이 없습니다</strong><p>{message || '조건에 맞는 콜을 찾지 못했어요'}</p></div></section>
+        <button className="button button--primary carrier-wide-button" onClick={onRetry} type="button">다시 불러오기</button>
+      </div>
+    )
+  }
+
   return (
     <div className="carrier-scroll candidate-screen">
       <section className="safety-brief">
         <span><Icon name="shield" size={25} /></span>
-        <div><strong>AI 추천 후보가 도착했습니다</strong><p>조건에 맞는 콜 3건을 비교해 보세요</p></div>
+        <div><strong>AI 추천 후보가 도착했습니다</strong><p>{status === 'error' ? '기본 예시 콜을 비교합니다' : `조건에 맞는 콜 ${calls.length}건을 비교해 보세요`}</p></div>
       </section>
-      <h2>다음 콜 후보 3건</h2>
+      <h2>다음 콜 후보 {calls.length}건</h2>
       <div className="candidate-list" role="radiogroup" aria-label="다음 콜 후보">
-        {candidates.map((candidate) => {
+        {calls.map((candidate, index) => {
           const isSelected = candidate.id === selected
           return (
             <button
               aria-checked={isSelected}
               className={`candidate-card${isSelected ? ' is-selected' : ''}`}
-              key={candidate.id}
+              key={candidate.callId}
               onClick={() => setSelected(candidate.id)}
               role="radio"
               type="button"
             >
               <span className="radio-mark">{isSelected && <i />}</span>
               <span className="candidate-main">
-                <strong>{candidate.id}. {candidate.route}</strong>
+                <strong>{index + 1}. {candidate.route}</strong>
                 <small>{candidate.time} · 공차 {candidate.emptyKm}km · {candidate.duration}시간</small>
                 <span className="candidate-tags">
                   {candidate.warning && <em className="warning-tag">△ {candidate.warning}</em>}
@@ -320,7 +408,7 @@ function CandidateSelectScreen({ onConfirm }: { onConfirm: (candidate: Candidate
           )
         })}
       </div>
-      {isComparingAlternative && <CandidateComparisonPanel baseline={recommendedCandidate} candidate={selectedCandidate} />}
+      {isComparingAlternative && <CandidateComparisonPanel baseline={recommendedCandidate} candidate={selectedCandidate} carrierId={demoCarrierId} />}
       <button className="button button--primary carrier-wide-button" onClick={() => onConfirm(selectedCandidate)} type="button">이 콜 선택하기</button>
       <p className="carrier-choice-note"><Icon name="info" size={17} /> 최종 선택은 운송인에게 있습니다</p>
     </div>
@@ -380,12 +468,12 @@ function RouteMapScreen({ route, progress, hasMoreOffers, onArrive }: { route: s
   )
 }
 
-function BackhaulDecisionScreen({ offer, onAccept, onGoHome }: { offer: BackhaulOffer; onAccept: () => void; onGoHome: () => void }) {
+function BackhaulDecisionScreen({ offer, onAccept, onGoHome }: { offer: CarrierCall; onAccept: () => void; onGoHome: () => void }) {
   return (
     <div className="carrier-scroll candidate-screen">
       <section className="safety-brief is-backhaul">
         <span><Icon name="truck" size={25} /></span>
-        <div><strong>복화 추천 콜이 도착했습니다</strong><p>귀가 방향과 맞는 콜이에요</p></div>
+        <div><strong>다음 추천 콜이 도착했습니다</strong><p>지금 위치에서 이어서 받을 수 있는 콜이에요</p></div>
       </section>
       <div className="candidate-list">
         <div className="candidate-card is-backhaul">
@@ -407,9 +495,8 @@ function BackhaulDecisionScreen({ offer, onAccept, onGoHome }: { offer: Backhaul
   )
 }
 
-function TripSummaryScreen({ selectedCandidate, acceptedOffers, onRestart }: { selectedCandidate: Candidate | null; acceptedOffers: BackhaulOffer[]; onRestart: () => void }) {
-  const selectedOrder = selectedCandidate ? orders.find((order) => order.route === selectedCandidate.route) : null
-  const loadedKm = (selectedOrder?.distance ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.distance, 0)
+function TripSummaryScreen({ selectedCandidate, acceptedOffers, onRestart }: { selectedCandidate: CarrierCall | null; acceptedOffers: CarrierCall[]; onRestart: () => void }) {
+  const loadedKm = (selectedCandidate?.distanceKm ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.distanceKm, 0)
   const emptyKm = (selectedCandidate?.emptyKm ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.emptyKm, 0)
   const totalKm = loadedKm + emptyKm
   const totalDuration = (selectedCandidate?.duration ?? 0) + acceptedOffers.reduce((sum, offer) => sum + offer.duration, 0)
@@ -417,10 +504,10 @@ function TripSummaryScreen({ selectedCandidate, acceptedOffers, onRestart }: { s
   const totalCalls = (selectedCandidate ? 1 : 0) + acceptedOffers.length
   const emptyRate = totalKm > 0 ? (emptyKm / totalKm) * 100 : 0
   const tripRows = [
-    ...(selectedCandidate && selectedOrder
-      ? [{ id: `candidate-${selectedCandidate.id}`, route: selectedCandidate.route, distance: selectedOrder.distance + selectedCandidate.emptyKm, net: selectedCandidate.net }]
+    ...(selectedCandidate
+      ? [{ id: `candidate-${selectedCandidate.callId}`, route: selectedCandidate.route, distance: selectedCandidate.distanceKm + selectedCandidate.emptyKm, net: selectedCandidate.net }]
       : []),
-    ...acceptedOffers.map((offer) => ({ id: `backhaul-${offer.id}`, route: offer.route, distance: offer.distance + offer.emptyKm, net: offer.net })),
+    ...acceptedOffers.map((offer) => ({ id: `backhaul-${offer.callId}`, route: offer.route, distance: offer.distanceKm + offer.emptyKm, net: offer.net })),
   ]
 
   const durationHours = Math.floor(totalDuration)
@@ -483,11 +570,38 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
   const [stage, setStage] = useState<CarrierStage>('base-profile')
   const [notification, setNotification] = useState<NotificationKind>(null)
   const [legIndex, setLegIndex] = useState(0)
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
-  const [acceptedOffers, setAcceptedOffers] = useState<BackhaulOffer[]>([])
+  const [selectedCandidate, setSelectedCandidate] = useState<CarrierCall | null>(null)
+  const [acceptedOffers, setAcceptedOffers] = useState<CarrierCall[]>([])
   const [activeRoute, setActiveRoute] = useState('')
   const [preferences, setPreferences] = useState<CarrierPreferences | null>(null)
   const [progress, setProgress] = useState(0)
+  // 수락·거절을 전송 중인 콜입니다. 같은 콜을 두 번 보내지 않기 위해 씁니다.
+  const [pendingCallId, setPendingCallId] = useState<string | null>(null)
+
+  const catalog = useCatalogOptions()
+  const matches = useCarrierMatches(catalog.data?.routes)
+  const usingServer = matches.status === 'ready' && matches.calls.length > 0
+  const calls = usingServer ? matches.calls : fallbackCalls
+  const board = usingServer ? matches.board : fallbackCalls
+  // 첫 콜로 고른 노선을 뺀 나머지를 다음 추천 콜로 씁니다.
+  const nextCalls = usingServer
+    ? matches.board.filter((call) => call.route !== selectedCandidate?.route && call.callId !== selectedCandidate?.callId).slice(0, 2)
+    : fallbackBackhaul
+
+  const recordFeedback = (call: CarrierCall, action: 'ACCEPT' | 'REJECT') => {
+    if (pendingCallId) return
+    setPendingCallId(call.callId)
+    sendFeedback({
+      matchId: matches.matchId,
+      actorType: 'CARRIER',
+      actorId: demoCarrierId,
+      action,
+      callId: call.callId,
+      occurredAt: new Date().toISOString(),
+    })
+      .catch(() => undefined)
+      .finally(() => setPendingCallId(null))
+  }
 
   useEffect(() => {
     if (stage !== 'home' || notification) return
@@ -505,11 +619,11 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
   }, [stage, activeRoute])
 
   useEffect(() => {
-    if (stage !== 'route-map' || notification || legIndex >= backhaulOffers.length) return
+    if (stage !== 'route-map' || notification || legIndex >= nextCalls.length) return
     if (progress >= 55) setNotification('backhaul')
-  }, [stage, notification, legIndex, progress])
+  }, [stage, notification, legIndex, progress, nextCalls.length])
 
-  const hasMoreOffers = legIndex < backhaulOffers.length
+  const hasMoreOffers = legIndex < nextCalls.length
 
   const openNotification = () => {
     if (!notification) return
@@ -574,14 +688,19 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
                   }}
                 />
               )}
-              {stage === 'home' && <OrderBoardScreen preferences={preferences} scanning={!notification} />}
+              {stage === 'home' && <OrderBoardScreen board={board} preferences={preferences} scanning={!notification} status={matches.status} />}
               {stage === 'candidates' && (
                 <CandidateSelectScreen
+                  calls={calls}
+                  message={matches.message}
                   onConfirm={(candidate) => {
+                    recordFeedback(candidate, 'ACCEPT')
                     setSelectedCandidate(candidate)
                     setActiveRoute(candidate.route)
                     setStage('route-map')
                   }}
+                  onRetry={matches.retry}
+                  status={matches.status}
                 />
               )}
               {stage === 'route-map' && (
@@ -598,17 +717,22 @@ export function CarrierWorkspace({ onReturnToShipper }: { onReturnToShipper: () 
                   route={activeRoute}
                 />
               )}
-              {stage === 'backhaul-decision' && (
+              {stage === 'backhaul-decision' && nextCalls[legIndex] && (
                 <BackhaulDecisionScreen
-                  offer={backhaulOffers[legIndex]}
+                  offer={nextCalls[legIndex]}
                   onAccept={() => {
-                    const offer = backhaulOffers[legIndex]
+                    const offer = nextCalls[legIndex]
+                    recordFeedback(offer, 'ACCEPT')
                     setAcceptedOffers((prev) => [...prev, offer])
                     setActiveRoute(offer.route)
                     setLegIndex((prev) => prev + 1)
                     setStage('route-map')
                   }}
-                  onGoHome={() => setStage('summary')}
+                  onGoHome={() => {
+                    const offer = nextCalls[legIndex]
+                    if (offer) recordFeedback(offer, 'REJECT')
+                    setStage('summary')
+                  }}
                 />
               )}
               {stage === 'summary' && (

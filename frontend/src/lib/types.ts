@@ -230,6 +230,53 @@ export type CatalogOptionsResponse = {
   warnings: string[]
 }
 
+/**
+ * 생성형 AI에 넘기는 입력입니다. docs/frontend-integration-handoff.md 6절의 match-insight-v1 계약입니다.
+ * 모든 값은 매칭 API 응답에서 수정 없이 복사하며, 프론트가 새로 계산한 숫자는 differences만 허용합니다.
+ */
+export type InsightSchemaVersion = 'match-insight-v1'
+
+export type ShipperInsightFacts = {
+  requestId: string
+  matchId: string
+  cargo: CargoSummary
+  current: Scenario
+  selectedScenario: Scenario
+  recommendation: Recommendation | null
+  explanationFacts: string[]
+  predictionSources: Record<string, string>
+  warnings: string[]
+}
+
+export type CarrierInsightDifferences = {
+  fare: number
+  fuelCost: number
+  emptyCost: number
+  netIncome: number
+  durationHours: number
+  emptyDistanceKm: number
+}
+
+export type CarrierInsightFacts = {
+  carrierId: string
+  baseline: CarrierRecommendation
+  selected: CarrierRecommendation
+  differences: CarrierInsightDifferences
+  predictionSources: Record<string, string>
+  warnings: string[]
+}
+
+export type InsightRequest =
+  | { schemaVersion: InsightSchemaVersion; audience: 'SHIPPER'; intent: 'MATCH_SUMMARY'; facts: ShipperInsightFacts }
+  | { schemaVersion: InsightSchemaVersion; audience: 'CARRIER'; intent: 'CANDIDATE_COMPARISON'; facts: CarrierInsightFacts }
+
+export type InsightResponse = {
+  text: string
+  model: string
+  /** 생성 문장에 입력에 없는 숫자가 있어 서버가 문장을 버렸을 때 true입니다. */
+  rejected?: boolean
+}
+
 export type ApiErrorDetail = {
   field: string
   reason: string

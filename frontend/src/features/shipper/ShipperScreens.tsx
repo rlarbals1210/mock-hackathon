@@ -5,6 +5,7 @@ import { ConditionComparison } from './ConditionComparison'
 import { InformationScreen } from './InformationScreen'
 import { MonthlyReport } from './MonthlyReport'
 import { ProfileScreen } from './ProfileScreen'
+import type { ShipperInsightFacts } from '../../lib/types'
 import { useCatalogOptions } from './useCatalogOptions'
 import {
   cargoIsComplete,
@@ -147,6 +148,8 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
   const [cargo, setCargo] = useState<CargoForm>(() => ({ ...emptyCargo }))
   const [choice, setChoice] = useState<DecisionChoice>(null)
   const [levers, setLevers] = useState<LeverState>(() => ({ ...emptyLevers }))
+  // 조건을 확정한 순간의 매칭 사실입니다. 리포트와 생성형 설명이 이 값만 씁니다.
+  const [insightFacts, setInsightFacts] = useState<ShipperInsightFacts | null>(null)
   const [operations, setOperations] = useState<OperationLog[]>([])
   const [toast, setToast] = useState('')
   const preferencesReady = preferencesAreComplete(preferences) && saved
@@ -193,10 +196,11 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
     onNavigate('compare')
   }
 
-  const chooseCondition = (nextChoice: Exclude<DecisionChoice, null>, nextLevers: LeverState) => {
+  const chooseCondition = (nextChoice: Exclude<DecisionChoice, null>, nextLevers: LeverState, facts: ShipperInsightFacts | null) => {
     const applied = describeLevers(nextLevers, getWindowHours(cargo.startMinutes, cargo.endMinutes) ?? 3)
     setChoice(nextChoice)
     setLevers(nextLevers)
+    setInsightFacts(facts)
     addOperation(nextChoice === 'adjusted' ? '조정안 선택' : '현재 조건 선택', nextChoice === 'adjusted' ? applied.join(' · ') : formatTimeWindow(cargo))
     setToast(nextChoice === 'adjusted' ? '조정안이 최근 선택으로 저장되었습니다.' : '현재 조건 유지가 최근 선택으로 저장되었습니다.')
     onNavigate('report')
@@ -209,7 +213,7 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
       : section === 'compare'
         ? <ConditionComparison cargo={cargo} catalog={catalog.data} choice={choice} onChoose={chooseCondition} onOpenRegistration={() => onNavigate('register')} />
         : section === 'report'
-          ? <MonthlyReport cargo={cargo} choice={choice} levers={levers} operations={operations} />
+          ? <MonthlyReport cargo={cargo} choice={choice} insightFacts={insightFacts} levers={levers} operations={operations} />
           : section === 'information'
             ? <InformationScreen timeProposalCount={choice ? 1 : 0} />
             : <ProfileScreen onEditPreferences={() => onNavigate('preferences')} operations={operations} preferences={preferences} />

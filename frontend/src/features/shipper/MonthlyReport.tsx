@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Icon } from '../../components/Icon'
+import { scenarioToPrediction } from '../../lib/adapters'
+import { requestInsight } from '../../lib/api'
+import type { ShipperInsightFacts } from '../../lib/types'
 import {
   describeLevers,
   emptyLevers,
   formatCargoWeight,
   formatCurrency,
   formatRisk,
-  formatTimeWindow,
   getCargoWeightKg,
   getCarbonReference,
   getLeadHours,
@@ -23,6 +25,8 @@ type MonthlyReportProps = {
   choice: DecisionChoice
   levers: LeverState
   operations: OperationLog[]
+  /** 조건 비교에서 확정한 매칭 사실입니다. 있으면 이 값이 로컬 계산보다 우선합니다. */
+  insightFacts: ShipperInsightFacts | null
 }
 
 function localAnalysis(choice: DecisionChoice, applied: string[], fareDelta: number, dispatchDelta: number) {
@@ -31,70 +35,55 @@ function localAnalysis(choice: DecisionChoice, applied: string[], fareDelta: num
   return `최근 배차는 ${applied.join(' · ')}을 적용한 조정안을 선택했습니다. 기획자료 끝점 비교 기준으로 예상 운임은 ${formatCurrency(Math.abs(fareDelta))}, 예상 배차시간은 ${Math.abs(dispatchDelta)}분 줄어드는 방향이며, 탄소 값은 국내계수판 방식 B의 집계값으로 별도 표시했습니다.`
 }
 
-export function MonthlyReport({ cargo, choice, levers, operations }: MonthlyReportProps) {
+export function MonthlyReport({ cargo, choice, levers, operations, insightFacts }: MonthlyReportProps) {
   const [showReport, setShowReport] = useState(false)
   const currentHours = getWindowHours(cargo.startMinutes, cargo.endMinutes) ?? 3
   const leadHours = getLeadHours(cargo) ?? 24
   const currentLevers = useMemo<LeverState>(() => ({ ...emptyLevers, windowHours: currentHours, timeChangeCostPerHour: levers.timeChangeCostPerHour }), [currentHours, levers.timeChangeCostPerHour])
-  const currentPrediction = useMemo(() => predictWithLevers(leadHours, currentLevers), [currentLevers, leadHours])
-  const selectedPrediction = useMemo(() => predictWithLevers(leadHours, choice === 'adjusted' ? levers : currentLevers), [choice, currentLevers, leadHours, levers])
+  const localCurrent = useMemo(() => predictWithLevers(leadHours, currentLevers), [currentLevers, leadHours])
+  const localSelected = useMemo(() => predictWithLevers(leadHours, choice === 'adjusted' ? levers : currentLevers), [choice, currentLevers, leadHours, levers])
+
+  // 확정된 매칭 사실이 있으면 그대로 쓰고, 없을 때만 로컬 참고값으로 되돌립니다.
+  const currentPrediction = insightFacts ? scenarioToPrediction(insightFacts.current) : localCurrent
+  const selectedPrediction = insightFacts ? scenarioToPrediction(insightFacts.selectedScenario) : localSelected
+
   const appliedLevers = useMemo(() => describeLevers(levers, currentHours), [currentHours, levers])
   const fareDelta = selectedPrediction.fare - currentPrediction.fare
   const dispatchDelta = selectedPrediction.dispatchMinutes - currentPrediction.dispatchMinutes
   const carbon = getCarbonReference(cargo)
-  const fallback = localAnalysis(choice, appliedLevers, fareDelta, dispatchDelta)
+  // 생성형 설명이 실패하면 서버가 확정한 사실 문장을 그대로 씁니다(인계서 6절).
+  const fallback = insightFacts?.explanationFacts.length
+    ? insightFacts.explanationFacts.join(' ')
+    : localAnalysis(choice, appliedLevers, fareDelta, dispatchDelta)
   const [analysis, setAnalysis] = useState(fallback)
   const [analysisSource, setAnalysisSource] = useState<'local' | 'gemini' | 'loading'>('local')
 
   useEffect(() => {
     setAnalysis(fallback)
-    if (!choice) {
+    if (!choice || !insightFacts) {
       setAnalysisSource('local')
       return
     }
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 6500)
     setAnalysisSource('loading')
-    fetch('/api/insights', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        choice,
-        route: `${cargo.origin || '미선택'} → ${cargo.destination || '미선택'}`,
-        vehicle: cargo.vehicle || '미선택',
-        item: cargo.item || '미선택',
-        cargoDetail: cargo.cargoDescription || '미선택',
-        cargoWeightKg: getCargoWeightKg(cargo.cargoWeight),
-        loadingWindow: choice === 'adjusted' ? `${levers.windowHours}시간` : formatTimeWindow(cargo),
-        appliedLevers: choice === 'adjusted' ? appliedLevers : [],
-        candidates: selectedPrediction.candidates,
-        fare: selectedPrediction.fare,
-        dispatchMinutes: selectedPrediction.dispatchMinutes,
-        failureRisk: formatRisk(selectedPrediction.failureProbability),
-        fareDelta,
-        dispatchDelta,
-        carbonKgPerOrder: carbon.value,
-        carbonBasis: carbon.basis,
-      }),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('Gemini endpoint unavailable')
-        const data = await response.json() as { text?: string }
-        if (!data.text) throw new Error('Gemini response empty')
-        setAnalysis(data.text)
-        setAnalysisSource('gemini')
-      })
-      .catch(() => {
+    requestInsight({
+      schemaVersion: 'match-insight-v1',
+      audience: 'SHIPPER',
+      intent: 'MATCH_SUMMARY',
+      facts: insightFacts,
+    }, controller.signal)
+      .then((text) => {
+        if (controller.signal.aborted) return
+        if (text) {
+          setAnalysis(text)
+          setAnalysisSource('gemini')
+          return
+        }
         setAnalysis(fallback)
         setAnalysisSource('local')
       })
-      .finally(() => window.clearTimeout(timeout))
-    return () => {
-      controller.abort()
-      window.clearTimeout(timeout)
-    }
-  }, [appliedLevers, cargo, carbon.basis, carbon.value, choice, dispatchDelta, fallback, fareDelta, levers.windowHours, selectedPrediction.candidates, selectedPrediction.dispatchMinutes, selectedPrediction.failureProbability, selectedPrediction.fare])
+    return () => controller.abort()
+  }, [choice, fallback, insightFacts])
 
   const timeProposals = choice ? appliedLevers.length : 0
   const proposalAcceptance = choice === 'adjusted' ? 100 : choice === 'current' ? 0 : null
