@@ -2205,27 +2205,6 @@
   font-size: 12px;
 }
 
-.rail-principle {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 18px;
-  margin-top: 38px;
-  background: #fff;
-  border: 1px solid #e5e5e5;
-  border-radius: 15px;
-}
-
-.rail-principle svg {
-  flex: 0 0 auto;
-}
-
-.rail-principle p {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.55;
-}
-
 .carrier-phone {
   position: relative;
   width: 100%;
@@ -2498,7 +2477,7 @@
 
 .carrier-quick-grid article {
   display: flex;
-  min-height: 124px;
+  min-height: 112px;
   align-items: center;
   justify-content: center;
   flex-direction: column;
@@ -2522,6 +2501,92 @@
 .carrier-quick-grid small {
   color: #8c8c8c;
   font-size: 9px;
+}
+
+.carrier-trip-log {
+  overflow: hidden;
+  flex: 0 0 auto;
+  margin-top: 16px;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 20px;
+}
+
+.carrier-report-screen > * {
+  flex-shrink: 0;
+}
+
+.carrier-trip-log__heading,
+.carrier-trip-log__row {
+  display: flex;
+  align-items: center;
+}
+
+.carrier-trip-log__heading {
+  justify-content: space-between;
+  padding: 17px 18px 14px;
+  border-bottom: 1px solid #ededed;
+}
+
+.carrier-trip-log__heading strong {
+  font-size: 13px;
+}
+
+.carrier-trip-log__heading span {
+  padding: 4px 8px;
+  color: #6f6400;
+  background: var(--brand-yellow-soft);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.carrier-trip-log__row {
+  gap: 11px;
+  padding: 14px 18px;
+}
+
+.carrier-trip-log__row + .carrier-trip-log__row {
+  border-top: 1px solid #f0f0f0;
+}
+
+.carrier-trip-log__row > span {
+  display: inline-flex;
+  width: 25px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: #756900;
+  background: var(--brand-yellow-soft);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.carrier-trip-log__row > div {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.carrier-trip-log__row strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carrier-trip-log__row small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.carrier-trip-log__row b {
+  flex: 0 0 auto;
+  font-size: 11px;
 }
 
 .carrier-wide-button {

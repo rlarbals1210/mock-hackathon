@@ -16,5 +16,5 @@ export const carrierStageLabels: Record<CarrierStage, string> = {
   candidates: '콜 후보 비교',
   'route-map': '이동 경로',
   'backhaul-decision': '복화 콜 결정',
-  summary: '운행 요약',
+  summary: '운행 리포트',
 }
