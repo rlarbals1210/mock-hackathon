@@ -6,11 +6,11 @@ import { CarrierWorkspace } from './features/carrier/CarrierWorkspace'
 import { ShipperScreen, type ShipperSection } from './features/shipper/ShipperScreens'
 
 const shipperNavigation: { id: ShipperSection; label: string; icon: IconName }[] = [
-  { id: 'dashboard', label: '대시보드', icon: 'dashboard' },
-  { id: 'register', label: '화물 등록', icon: 'plus' },
+  { id: 'preferences', label: '필수 설정', icon: 'shield' },
+  { id: 'register', label: '콜 등록', icon: 'plus' },
   { id: 'compare', label: '조건 비교', icon: 'compare' },
   { id: 'report', label: '월간 리포트', icon: 'chart' },
-  { id: 'chat', label: '채팅', icon: 'chat' },
+  { id: 'profile', label: '내 정보', icon: 'profile' },
 ]
 
 function Brand() {
@@ -43,8 +43,9 @@ function Sidebar({ section, onNavigate }: { section: ShipperSection; onNavigate:
   )
 }
 
-function ShipperHeader({ role, onRoleChange, onHelp }: { role: UserRole; onRoleChange: (role: UserRole) => void; onHelp: () => void }) {
+function ShipperHeader({ role, onRoleChange }: { role: UserRole; onRoleChange: (role: UserRole) => void }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   return (
     <header className="top-header">
       <div className="mobile-brand"><Brand /></div>
@@ -54,17 +55,19 @@ function ShipperHeader({ role, onRoleChange, onHelp }: { role: UserRole; onRoleC
         <button aria-expanded={notificationsOpen} aria-label="알림" className="icon-button" onClick={() => setNotificationsOpen((value) => !value)} type="button"><Icon name="bell" /></button>
         {notificationsOpen && <div className="notification-popover" role="status"><strong>새 알림이 없습니다.</strong><span>중요한 배차 변경이 생기면 이곳에 알려드려요.</span></div>}
       </div>
-      <button aria-label="도움말" className="icon-button help-button" onClick={onHelp} type="button"><Icon name="help" /></button>
+      <div className="notification-wrap help-button">
+        <button aria-expanded={helpOpen} aria-label="도움말" className="icon-button" onClick={() => setHelpOpen((value) => !value)} type="button"><Icon name="help" /></button>
+        {helpOpen && <div className="notification-popover" role="status"><strong>실시간 배차 도움말</strong><span>주황색은 선택·응답 대기, 초록색은 완료 상태입니다. 모든 선호 질문을 완료하면 운송인 연동이 시작됩니다.</span></div>}
+      </div>
     </header>
   )
 }
 
 function MobileShipperNav({ section, onNavigate }: { section: ShipperSection; onNavigate: (section: ShipperSection) => void }) {
-  const items = shipperNavigation.filter((item) => item.id !== 'compare')
   return (
     <nav className="mobile-shipper-nav" aria-label="모바일 화주 메뉴">
-      {items.map((item) => (
-        <button className={section === item.id || (item.id === 'register' && section === 'compare') ? 'is-active' : ''} key={item.id} onClick={() => onNavigate(item.id)} type="button">
+      {shipperNavigation.map((item) => (
+        <button className={section === item.id ? 'is-active' : ''} key={item.id} onClick={() => onNavigate(item.id)} type="button">
           <Icon name={item.icon} />
           <span>{item.label}</span>
         </button>
@@ -75,7 +78,7 @@ function MobileShipperNav({ section, onNavigate }: { section: ShipperSection; on
 
 function App() {
   const [role, setRole] = useState<UserRole>('shipper')
-  const [shipperSection, setShipperSection] = useState<ShipperSection>('register')
+  const [shipperSection, setShipperSection] = useState<ShipperSection>('preferences')
 
   const changeRole = (nextRole: UserRole) => {
     setRole(nextRole)
@@ -95,7 +98,7 @@ function App() {
     <div className="app-shell">
       <Sidebar onNavigate={navigateShipper} section={shipperSection} />
       <div className="shipper-shell">
-        <ShipperHeader onHelp={() => navigateShipper('chat')} onRoleChange={changeRole} role={role} />
+        <ShipperHeader onRoleChange={changeRole} role={role} />
         <main className="shipper-main">
           <ShipperScreen onNavigate={navigateShipper} section={shipperSection} />
         </main>
