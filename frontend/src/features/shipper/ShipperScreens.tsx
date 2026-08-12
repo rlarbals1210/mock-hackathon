@@ -8,15 +8,19 @@ import { ProfileScreen } from './ProfileScreen'
 import {
   cargoIsComplete,
   createOperation,
+  describeLevers,
   emptyCargo,
+  emptyLevers,
   formatDate,
   formatCargoWeight,
   formatTimeWindow,
   getCargoWeightKg,
+  getWindowHours,
   preferenceGroups,
   preferencesAreComplete,
   type CargoForm,
   type DecisionChoice,
+  type LeverState,
   type OperationLog,
   type PreferenceGroupId,
   type PreferenceState,
@@ -139,7 +143,7 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
   const [saved, setSaved] = useState(false)
   const [cargo, setCargo] = useState<CargoForm>(() => ({ ...emptyCargo }))
   const [choice, setChoice] = useState<DecisionChoice>(null)
-  const [adjustedHours, setAdjustedHours] = useState(12)
+  const [levers, setLevers] = useState<LeverState>(() => ({ ...emptyLevers }))
   const [operations, setOperations] = useState<OperationLog[]>([])
   const [toast, setToast] = useState('')
   const preferencesReady = preferencesAreComplete(preferences) && saved
@@ -186,10 +190,11 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
     onNavigate('compare')
   }
 
-  const chooseCondition = (nextChoice: Exclude<DecisionChoice, null>, nextAdjustedHours: number) => {
+  const chooseCondition = (nextChoice: Exclude<DecisionChoice, null>, nextLevers: LeverState) => {
+    const applied = describeLevers(nextLevers, getWindowHours(cargo.startMinutes, cargo.endMinutes) ?? 3)
     setChoice(nextChoice)
-    setAdjustedHours(nextAdjustedHours)
-    addOperation(nextChoice === 'adjusted' ? '조정안 선택' : '현재 조건 선택', nextChoice === 'adjusted' ? `상차 가능 범위 ${nextAdjustedHours}시간` : formatTimeWindow(cargo))
+    setLevers(nextLevers)
+    addOperation(nextChoice === 'adjusted' ? '조정안 선택' : '현재 조건 선택', nextChoice === 'adjusted' ? applied.join(' · ') : formatTimeWindow(cargo))
     setToast(nextChoice === 'adjusted' ? '조정안이 최근 선택으로 저장되었습니다.' : '현재 조건 유지가 최근 선택으로 저장되었습니다.')
     onNavigate('report')
   }
@@ -201,7 +206,7 @@ export function ShipperScreen({ section, onNavigate }: { section: ShipperSection
       : section === 'compare'
         ? <ConditionComparison cargo={cargo} choice={choice} onChoose={chooseCondition} onOpenRegistration={() => onNavigate('register')} />
         : section === 'report'
-          ? <MonthlyReport adjustedHours={adjustedHours} cargo={cargo} choice={choice} operations={operations} />
+          ? <MonthlyReport cargo={cargo} choice={choice} levers={levers} operations={operations} />
           : section === 'information'
             ? <InformationScreen timeProposalCount={choice ? 1 : 0} />
             : <ProfileScreen onEditPreferences={() => onNavigate('preferences')} operations={operations} preferences={preferences} />
