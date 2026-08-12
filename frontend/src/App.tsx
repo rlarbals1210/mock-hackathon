@@ -44,21 +44,11 @@ function Sidebar({ section, onNavigate }: { section: ShipperSection; onNavigate:
 }
 
 function ShipperHeader({ role, onRoleChange }: { role: UserRole; onRoleChange: (role: UserRole) => void }) {
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [helpOpen, setHelpOpen] = useState(false)
   return (
     <header className="top-header">
       <div className="mobile-brand"><Brand /></div>
       <div className="header-spacer" />
       <RoleSwitch onChange={onRoleChange} role={role} />
-      <div className="notification-wrap">
-        <button aria-expanded={notificationsOpen} aria-label="알림" className="icon-button" onClick={() => setNotificationsOpen((value) => !value)} type="button"><Icon name="bell" /></button>
-        {notificationsOpen && <div className="notification-popover" role="status"><strong>새 알림이 없습니다.</strong><span>중요한 배차 변경이 생기면 이곳에 알려드려요.</span></div>}
-      </div>
-      <div className="notification-wrap help-button">
-        <button aria-expanded={helpOpen} aria-label="도움말" className="icon-button" onClick={() => setHelpOpen((value) => !value)} type="button"><Icon name="help" /></button>
-        {helpOpen && <div className="notification-popover" role="status"><strong>화주 배차 도움말</strong><span>필수 설정과 콜 등록을 완료한 뒤 현재 조건과 완화 조건을 비교할 수 있습니다.</span></div>}
-      </div>
     </header>
   )
 }
